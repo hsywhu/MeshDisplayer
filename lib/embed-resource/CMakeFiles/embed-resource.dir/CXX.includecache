@@ -1,0 +1,16 @@
+#IncludeRegexLine: ^[ 	]*[#%][ 	]*(include|import)[ 	]*[<"]([^">]+)([">])
+
+#IncludeRegexScan: ^.*$
+
+#IncludeRegexComplain: ^$
+
+#IncludeRegexTransform: 
+
+/home/songyih/CMPT764/Assignment1/nanogui_cmpt_464/lib/embed-resource/embedresource.cpp
+boost/filesystem.hpp
+-
+boost/filesystem/fstream.hpp
+-
+iostream
+-
+
