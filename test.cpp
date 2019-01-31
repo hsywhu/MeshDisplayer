@@ -259,7 +259,7 @@ class MyGLCanvas : public nanogui::GLCanvas
         normals.col(47) << Vector3f(1, 1, 1).normalized();
 
         /* Each vertice can have a color too (rgb in this case) */
-        /* the face will interpolate the color of its vertices to create a gradient */
+        /* the face will interpolate the color of its vertices to positionsa gradient */
 
         //just a red cube by default
         colors.col(0) << 1, 0, 0;
@@ -338,7 +338,7 @@ class MyGLCanvas : public nanogui::GLCanvas
 
         // This the light origin position in your environment, which is totally arbitrary
         // however it is better if it is behind the observer
-        mShader.setUniform("LightPosition_worldspace", Vector3f(-2, 6, -4));
+        mShader.setUniform("LightPosition_worldspace", Vector3f(0, -5, -5));
     }
 
     //flush data on call
@@ -390,13 +390,14 @@ class MyGLCanvas : public nanogui::GLCanvas
         // In this example, we are using the left mouse button
         // to control the arcball motion
         if (button == GLFW_MOUSE_BUTTON_2) {
-            mArcball->button(p, down);// Note 2
+            mArcball->button(p, down);
             return true;
         }
-        // if (button == GLFW_MOUSE_BUTTON_1) {
-        //     cout << "right click" << endl;
-        //     return true;
-        // }
+        if (button == GLFW_MOUSE_BUTTON_1) {
+            right_mouse_down = down;
+            // cout << "right_mouse " << right_mouse_down << endl;
+            return true;
+        }
         return false;
     }
 
@@ -410,10 +411,27 @@ class MyGLCanvas : public nanogui::GLCanvas
             //float radians1 = (rotation1 - 0.5f)*2*2*M_PI;
             //then use this to rotate on just one axis
             //mCanvas->setRotation(nanogui::Vector3f(radians0, radians1, 0.0f));
-            mArcball->motion(p); // Note 2
+            mArcball->motion(p);
+            return true;
+        }
+        if (button == GLFW_MOUSE_BUTTON_2){
+            if(right_mouse_down){
+                // cout << rel.x() << " " << rel.y() << endl;
+                for(int i = 0; i < positions.cols(); i++){
+                    positions.col(i)[0] += rel.x()*0.02;
+                    positions.col(i)[1] -= rel.y()*0.02;
+                }
+            }
             return true;
         }
         return false;
+    }
+
+    virtual bool scrollEvent(const Vector2i &p, const Vector2f &rel){
+        cout << rel.x() << " " << rel.y() << endl;
+        float mesh_scale = 1 + rel.y()*0.015;
+        positions *= mesh_scale;
+        return true;
     }
 
 
@@ -427,6 +445,7 @@ class MyGLCanvas : public nanogui::GLCanvas
         mShader.bind();
 
         //this simple command updates the positions matrix. You need to do the same for color and indices matrices too
+        
         mShader.uploadAttrib("vertexPosition_modelspace", positions);
         mShader.uploadAttrib("color", colors);
 
@@ -489,6 +508,7 @@ private:
     MatrixXf normals = MatrixXf(3, 48);
     MatrixXf normals_flat = MatrixXf(3, 48);
     int num_triangles = 12;
+    bool right_mouse_down = false;
 
     /*
         render_mode:
@@ -526,15 +546,15 @@ class ExampleApplication : public nanogui::Screen
 
         //This is how we add widgets, in this case, they are connected to the same window as the OpenGL canvas
         Widget *tools = new Widget(window);
-        tools->setLayout(new BoxLayout(Orientation::Horizontal,
-                                       Alignment::Middle, 0, 5));
+        // tools->setLayout(new BoxLayout(Orientation::Horizontal,
+        //                                Alignment::Middle, 0, 5));
 
-        //then we start adding elements one by one as shown below
-        Button *b0 = new Button(tools, "Random Color");
-        b0->setCallback([this]() { mCanvas->setBackgroundColor(Vector4i(rand() % 256, rand() % 256, rand() % 256, 255)); });
+        // //then we start adding elements one by one as shown below
+        // Button *b0 = new Button(tools, "Random Color");
+        // b0->setCallback([this]() { mCanvas->setBackgroundColor(Vector4i(rand() % 256, rand() % 256, rand() % 256, 255)); });
 
-        Button *b1 = new Button(tools, "Random Rotation");
-        b1->setCallback([this]() { mCanvas->setRotation(nanogui::Vector3f((rand() % 100) / 100.0f, (rand() % 100) / 100.0f, (rand() % 100) / 100.0f)); });
+        // Button *b1 = new Button(tools, "Random Rotation");
+        // b1->setCallback([this]() { mCanvas->setRotation(nanogui::Vector3f((rand() % 100) / 100.0f, (rand() % 100) / 100.0f, (rand() % 100) / 100.0f)); });
 
         //widgets demonstration
         //Seems no use--------------------------------------
@@ -894,38 +914,46 @@ class ExampleApplication : public nanogui::Screen
             mCanvas->updateRenderMode(value);
         });
 
-        new Label(anotherWindow, "Check box", "sans-bold");
-        CheckBox *cb = new CheckBox(anotherWindow, "Flag 1",
-                                    [](bool state) { cout << "Check box 1 state: " << state << endl; });
-        cb->setChecked(true);
-        cb = new CheckBox(anotherWindow, "Flag 2",
-                          [](bool state) { cout << "Check box 2 state: " << state << endl; });
-        new Label(anotherWindow, "Progress bar", "sans-bold");
-        mProgress = new ProgressBar(anotherWindow);
-
-        new Label(anotherWindow, "Slider and text box", "sans-bold");
-
-        Widget *panel = new Widget(anotherWindow);
-        panel->setLayout(new BoxLayout(Orientation::Horizontal,
+        tools = new Widget(anotherWindow);
+        tools->setLayout(new BoxLayout(Orientation::Horizontal,
                                        Alignment::Middle, 0, 20));
+        b = new Button(tools, "quit");
+        b->setCallback([&] {
+            nanogui::shutdown();
+        });
+
+        // new Label(anotherWindow, "Check box", "sans-bold");
+        // CheckBox *cb = new CheckBox(anotherWindow, "Flag 1",
+        //                             [](bool state) { cout << "Check box 1 state: " << state << endl; });
+        // cb->setChecked(true);
+        // cb = new CheckBox(anotherWindow, "Flag 2",
+        //                   [](bool state) { cout << "Check box 2 state: " << state << endl; });
+        // new Label(anotherWindow, "Progress bar", "sans-bold");
+        // mProgress = new ProgressBar(anotherWindow);
+
+        // new Label(anotherWindow, "Slider and text box", "sans-bold");
+
+        // Widget *panel = new Widget(anotherWindow);
+        // panel->setLayout(new BoxLayout(Orientation::Horizontal,
+        //                                Alignment::Middle, 0, 20));
 
         //Fancy slider that has a callback function to update another interface element
-        Slider *slider = new Slider(panel);
-        slider->setValue(0.5f);
-        slider->setFixedWidth(80);
-        TextBox *textBox = new TextBox(panel);
-        textBox->setFixedSize(Vector2i(60, 25));
-        textBox->setValue("50");
-        textBox->setUnits("%");
-        slider->setCallback([textBox](float value) {
-            textBox->setValue(std::to_string((int)(value * 100)));
-        });
-        slider->setFinalCallback([&](float value) {
-            cout << "Final slider value: " << (int)(value * 100) << endl;
-        });
-        textBox->setFixedSize(Vector2i(60, 25));
-        textBox->setFontSize(20);
-        textBox->setAlignment(TextBox::Alignment::Right);
+        // Slider *slider = new Slider(panel);
+        // slider->setValue(0.5f);
+        // slider->setFixedWidth(80);
+        // TextBox *textBox = new TextBox(panel);
+        // textBox->setFixedSize(Vector2i(60, 25));
+        // textBox->setValue("50");
+        // textBox->setUnits("%");
+        // slider->setCallback([textBox](float value) {
+        //     textBox->setValue(std::to_string((int)(value * 100)));
+        // });
+        // slider->setFinalCallback([&](float value) {
+        //     cout << "Final slider value: " << (int)(value * 100) << endl;
+        // });
+        // textBox->setFixedSize(Vector2i(60, 25));
+        // textBox->setFontSize(20);
+        // textBox->setAlignment(TextBox::Alignment::Right);
 
         //Method to assemble the interface defined before it is called
         performLayout();
@@ -985,14 +1013,14 @@ class ExampleApplication : public nanogui::Screen
     virtual void draw(NVGcontext *ctx)
     {
         /* Animate the scrollbar */
-        mProgress->setValue(std::fmod((float)glfwGetTime() / 10, 1.0f));
+        // mProgress->setValue(std::fmod((float)glfwGetTime() / 10, 1.0f));
 
         /* Draw the user interface */
         Screen::draw(ctx);
     }
 
   private:
-    nanogui::ProgressBar *mProgress;
+    // nanogui::ProgressBar *mProgress;
     MyGLCanvas *mCanvas;
     
     float rotation0_tracking = 0.0;
@@ -1068,3 +1096,4 @@ int main(int /* argc */, char ** /* argv */)
 
     return 0;
 }
+
