@@ -656,10 +656,7 @@ class ExampleApplication : public nanogui::Screen
                 v_vertex.clear();
                 v_faces.clear();
                 v_Wedges.clear();
-                int count_line = 0;
                 while(getline(obj_file, line)){
-                    cout << "count_line: " << count_line << endl;
-                    count_line++;
                     trim(line);
                     if(line[0] == '#')
                         continue;
