@@ -53,9 +53,15 @@ nanogui/tabwidget.h
 -
 nanogui/glcanvas.h
 -
+math.h
+-
 iostream
 -
+fstream
+-
 string
+-
+sstream
 -
 cstdint
 -
