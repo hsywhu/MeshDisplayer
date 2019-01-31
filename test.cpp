@@ -371,11 +371,18 @@ class MyGLCanvas : public nanogui::GLCanvas
         num_triangles = new_num_triangles;
     }
 
-    void updateMeshNormals(MatrixXf newNormals, int new_num_triangles)
+    void updateMeshNormals(MatrixXf newNormals, MatrixXf newNormals_flat, int new_num_triangles)
     {
         normals = newNormals;
+        normals_flat = newNormals_flat;
         num_triangles = new_num_triangles;
     }
+
+    void updateRenderMode(int new_render_mode)
+    {
+        render_mode = new_render_mode;
+    }
+
 
     //This is how you capture mouse events in the screen. If you want to implement the arcball instead of using
     //sliders, then you need to map the right click drag motions to suitable rotation matrices
@@ -422,7 +429,12 @@ class MyGLCanvas : public nanogui::GLCanvas
         //this simple command updates the positions matrix. You need to do the same for color and indices matrices too
         mShader.uploadAttrib("vertexPosition_modelspace", positions);
         mShader.uploadAttrib("color", colors);
-        mShader.uploadAttrib("vertexNormal_modelspace", normals);
+
+        if(render_mode == 1 || render_mode == 4)
+            mShader.uploadAttrib("vertexNormal_modelspace", normals_flat);
+        else
+            mShader.uploadAttrib("vertexNormal_modelspace", normals);
+        
 
         //This is a way to perform a simple rotation using a 4x4 rotation matrix represented by rmat
         //mvp stands for ModelViewProjection matrix
@@ -448,9 +460,21 @@ class MyGLCanvas : public nanogui::GLCanvas
         /* Take a look at this link to better understand OpenGL primitives */
         /* https://www.khronos.org/opengl/wiki/Primitive */
 
-        // draw triangles and lines
+        // draw triangles and lines according to render mode
+        switch(render_mode){
+            case 0: mShader.drawArray(GL_TRIANGLES, 0, num_triangles * 3); break;
+            case 1: mShader.drawArray(GL_TRIANGLES, 0, num_triangles * 3); break;
+            case 2: mShader.drawArray(GL_LINES, num_triangles * 3, num_triangles * 3 * 2); break;
+            case 3: mShader.drawArray(GL_TRIANGLES, 0, num_triangles * 3);
+                    mShader.drawArray(GL_LINES, num_triangles * 3, num_triangles * 3 * 2);
+                    break;
+            case 4: mShader.drawArray(GL_TRIANGLES, 0, num_triangles * 3);
+                    mShader.drawArray(GL_LINES, num_triangles * 3, num_triangles * 3 * 2);
+                    break;
+            default: cout << "render mode error" << endl; break;
+        }
         // mShader.drawArray(GL_TRIANGLES, 0, num_triangles * 3);
-        mShader.drawArray(GL_LINES, num_triangles * 3, num_triangles * 3 * 2);
+        // mShader.drawArray(GL_LINES, num_triangles * 3, num_triangles * 3 * 2);
 
         //mShader.drawIndexed(GL_TRIANGLES, 0, 12);
         //mShader.drawIndexed(GL_LINES, 12, 12);
@@ -463,7 +487,18 @@ private:
     MatrixXf positions = MatrixXf(3, 48);
     MatrixXf colors = MatrixXf(3, 48);
     MatrixXf normals = MatrixXf(3, 48);
+    MatrixXf normals_flat = MatrixXf(3, 48);
     int num_triangles = 12;
+
+    /*
+        render_mode:
+            0: smooth shaded
+            1: flat shaded
+            2: wireframe
+            3: smooth shaded with wireframe
+            4: flat shaded with wireframe
+    */
+    int render_mode = 0;
     nanogui::GLShader mShader;
     Eigen::Vector3f mRotation;
     nanogui::Matrix4f mRotation4x4;
@@ -488,8 +523,6 @@ class ExampleApplication : public nanogui::Screen
         mCanvas = new MyGLCanvas(window);
         mCanvas->setBackgroundColor({100, 100, 100, 255});
         mCanvas->setSize({400, 400});
-
-
 
         //This is how we add widgets, in this case, they are connected to the same window as the OpenGL canvas
         Widget *tools = new Widget(window);
@@ -543,77 +576,77 @@ class ExampleApplication : public nanogui::Screen
          * rotation using three slide bars
         */
 
-        //first slide bar
-        new Label(anotherWindow, "Rotation on the first axis", "sans-bold");
+        // //first slide bar
+        // new Label(anotherWindow, "Rotation on the first axis", "sans-bold");
 
-        Widget *panelRot0 = new Widget(anotherWindow);
-        panelRot0->setLayout(new BoxLayout(Orientation::Horizontal,
-                                           Alignment::Middle, 0, 0));
+        // Widget *panelRot0 = new Widget(anotherWindow);
+        // panelRot0->setLayout(new BoxLayout(Orientation::Horizontal,
+        //                                    Alignment::Middle, 0, 0));
 
-        Slider *rotSlider0 = new Slider(panelRot0);
-        rotSlider0->setValue(0.5f);
-        rotSlider0->setFixedWidth(150);
-        rotSlider0->setCallback([&](float rotation0) {
-            // the middle point should be 0 rad
-            // then we need to multiply by 2 to make it go from -1. to 1.
-            // then we make it go from -2*M_PI to 2*M_PI
-            float radians0 = (rotation0 - 0.5f) * 2 * 2 * M_PI;
-            float radians1 = (rotation1_tracking - 0.5f) * 2 * 2 * M_PI;
-            float radians2 = (rotation2_tracking - 0.5f) * 2 * 2 * M_PI;
-            //then use this to rotate on just one axis
-            mCanvas->setRotation(nanogui::Vector3f(radians0, radians1, radians2));
-            //when you implement the other sliders and/or the Arcball, you need to keep track
-            //of the other rotations used for the second and third axis... It will not stay as 0.0f
-            rotation0_tracking = rotation0;
-        });
+        // Slider *rotSlider0 = new Slider(panelRot0);
+        // rotSlider0->setValue(0.5f);
+        // rotSlider0->setFixedWidth(150);
+        // rotSlider0->setCallback([&](float rotation0) {
+        //     // the middle point should be 0 rad
+        //     // then we need to multiply by 2 to make it go from -1. to 1.
+        //     // then we make it go from -2*M_PI to 2*M_PI
+        //     float radians0 = (rotation0 - 0.5f) * 2 * 2 * M_PI;
+        //     float radians1 = (rotation1_tracking - 0.5f) * 2 * 2 * M_PI;
+        //     float radians2 = (rotation2_tracking - 0.5f) * 2 * 2 * M_PI;
+        //     //then use this to rotate on just one axis
+        //     mCanvas->setRotation(nanogui::Vector3f(radians0, radians1, radians2));
+        //     //when you implement the other sliders and/or the Arcball, you need to keep track
+        //     //of the other rotations used for the second and third axis... It will not stay as 0.0f
+        //     rotation0_tracking = rotation0;
+        // });
 
-        //second slide bar
-        new Label(anotherWindow, "Rotation on the second axis", "sans-bold");
+        // //second slide bar
+        // new Label(anotherWindow, "Rotation on the second axis", "sans-bold");
 
-        Widget *panelRot1 = new Widget(anotherWindow);
-        panelRot1->setLayout(new BoxLayout(Orientation::Horizontal,
-                                           Alignment::Middle, 0, 0));
+        // Widget *panelRot1 = new Widget(anotherWindow);
+        // panelRot1->setLayout(new BoxLayout(Orientation::Horizontal,
+        //                                    Alignment::Middle, 0, 0));
 
-        Slider *rotSlider1 = new Slider(panelRot1);
-        rotSlider1->setValue(0.5f);
-        rotSlider1->setFixedWidth(150);
-        rotSlider1->setCallback([&](float rotation1) {
-            // the middle point should be 0 rad
-            // then we need to multiply by 2 to make it go from -1. to 1.
-            // then we make it go from -2*M_PI to 2*M_PI
-            float radians0 = (rotation0_tracking - 0.5f) * 2 * 2 * M_PI;
-            float radians1 = (rotation1 - 0.5f) * 2 * 2 * M_PI;
-            float radians2 = (rotation2_tracking - 0.5f) * 2 * 2 * M_PI;
-            //then use this to rotate on just one axis
-            mCanvas->setRotation(nanogui::Vector3f(radians0, radians1, radians2));
-            //when you implement the other sliders and/or the Arcball, you need to keep track
-            //of the other rotations used for the second and third axis... It will not stay as 0.0f
-            rotation1_tracking = rotation1;
-        });
+        // Slider *rotSlider1 = new Slider(panelRot1);
+        // rotSlider1->setValue(0.5f);
+        // rotSlider1->setFixedWidth(150);
+        // rotSlider1->setCallback([&](float rotation1) {
+        //     // the middle point should be 0 rad
+        //     // then we need to multiply by 2 to make it go from -1. to 1.
+        //     // then we make it go from -2*M_PI to 2*M_PI
+        //     float radians0 = (rotation0_tracking - 0.5f) * 2 * 2 * M_PI;
+        //     float radians1 = (rotation1 - 0.5f) * 2 * 2 * M_PI;
+        //     float radians2 = (rotation2_tracking - 0.5f) * 2 * 2 * M_PI;
+        //     //then use this to rotate on just one axis
+        //     mCanvas->setRotation(nanogui::Vector3f(radians0, radians1, radians2));
+        //     //when you implement the other sliders and/or the Arcball, you need to keep track
+        //     //of the other rotations used for the second and third axis... It will not stay as 0.0f
+        //     rotation1_tracking = rotation1;
+        // });
 
-        //third slide bar
-        new Label(anotherWindow, "Rotation on the third axis", "sans-bold");
+        // //third slide bar
+        // new Label(anotherWindow, "Rotation on the third axis", "sans-bold");
 
-        Widget *panelRot2 = new Widget(anotherWindow);
-        panelRot2->setLayout(new BoxLayout(Orientation::Horizontal,
-                                           Alignment::Middle, 0, 0));
+        // Widget *panelRot2 = new Widget(anotherWindow);
+        // panelRot2->setLayout(new BoxLayout(Orientation::Horizontal,
+        //                                    Alignment::Middle, 0, 0));
 
-        Slider *rotSlider2 = new Slider(panelRot2);
-        rotSlider2->setValue(0.5f);
-        rotSlider2->setFixedWidth(150);
-        rotSlider2->setCallback([&](float rotation2) {
-            // the middle point should be 0 rad
-            // then we need to multiply by 2 to make it go from -1. to 1.
-            // then we make it go from -2*M_PI to 2*M_PI
-            float radians0 = (rotation0_tracking - 0.5f) * 2 * 2 * M_PI;
-            float radians1 = (rotation1_tracking - 0.5f) * 2 * 2 * M_PI;
-            float radians2 = (rotation2 - 0.5f) * 2 * 2 * M_PI;
-            //then use this to rotate on just one axis
-            mCanvas->setRotation(nanogui::Vector3f(radians0, radians1, radians2));
-            //when you implement the other sliders and/or the Arcball, you need to keep track
-            //of the other rotations used for the second and third axis... It will not stay as 0.0f
-            rotation2_tracking = rotation2;
-        });
+        // Slider *rotSlider2 = new Slider(panelRot2);
+        // rotSlider2->setValue(0.5f);
+        // rotSlider2->setFixedWidth(150);
+        // rotSlider2->setCallback([&](float rotation2) {
+        //     // the middle point should be 0 rad
+        //     // then we need to multiply by 2 to make it go from -1. to 1.
+        //     // then we make it go from -2*M_PI to 2*M_PI
+        //     float radians0 = (rotation0_tracking - 0.5f) * 2 * 2 * M_PI;
+        //     float radians1 = (rotation1_tracking - 0.5f) * 2 * 2 * M_PI;
+        //     float radians2 = (rotation2 - 0.5f) * 2 * 2 * M_PI;
+        //     //then use this to rotate on just one axis
+        //     mCanvas->setRotation(nanogui::Vector3f(radians0, radians1, radians2));
+        //     //when you implement the other sliders and/or the Arcball, you need to keep track
+        //     //of the other rotations used for the second and third axis... It will not stay as 0.0f
+        //     rotation2_tracking = rotation2;
+        // });
 
         //Message dialog demonstration, it should be pretty straightforward
         // new Label(anotherWindow, "Message dialog", "sans-bold");
@@ -727,6 +760,7 @@ class ExampleApplication : public nanogui::Screen
             MatrixXf newColors = MatrixXf(3, v_faces.size()*9);
             MatrixXf newFaceNormals = MatrixXf(3, v_faces.size());
             MatrixXf newVertexNormals = MatrixXf(3, v_faces.size()*9);
+            MatrixXf newVertexNormals_flat = MatrixXf(3, v_faces.size()*9);
             vector<Vertex *> v_order;
             int check_count = 3;    // make sure we find 3 vertex every iteration
             int newPosition_col = 0;
@@ -807,7 +841,8 @@ class ExampleApplication : public nanogui::Screen
                 W_edge *edge = e0;
                 int face_count = 0;
                 newVertexNormals.col(i) << 0, 0, 0;
-                
+                newVertexNormals_flat.col(i) = newFaceNormals.col(face_idx_map[edge -> left]);
+                newVertexNormals_flat.col(v_order.size() + i*2) = newFaceNormals.col(face_idx_map[edge -> left]);
                 do{
                     if(edge->end == v_vertex[vertex_idx_map[v_order[i]]]){
                         newVertexNormals.col(i) += newFaceNormals.col(face_idx_map[edge -> left]);
@@ -820,13 +855,13 @@ class ExampleApplication : public nanogui::Screen
                     }
                 }while (edge != e0);
                 newVertexNormals.col(i) /= face_count;
-                newVertexNormals.col(v_order.size() + i*2) << newVertexNormals.col(i)[0], newVertexNormals.col(i)[1], newVertexNormals.col(i)[2];
+                newVertexNormals.col(v_order.size() + i*2) = newVertexNormals.col(i);
 
                 e0 = v_vertex[vertex_idx_map[v_order[i]]] -> edge -> end -> edge;
                 edge = e0;
                 face_count = 0;
                 newVertexNormals.col(v_order.size() + i*2 + 1) << 0, 0, 0;
-                
+                newVertexNormals_flat.col(v_order.size() + i*2 + 1) = newFaceNormals.col(face_idx_map[edge -> left]);
                 do{
                     if(edge->end == v_vertex[vertex_idx_map[v_order[i]]] -> edge -> end){
                         newVertexNormals.col(i) += newFaceNormals.col(face_idx_map[edge -> left]);
@@ -843,7 +878,7 @@ class ExampleApplication : public nanogui::Screen
 
             mCanvas->updateMeshPositions(newPositions, (int)(newPosition_col/3));
             mCanvas->updateMeshColors(newColors, (int)(newPosition_col/3));
-            mCanvas->updateMeshNormals(newVertexNormals, (int)(newPosition_col/3));
+            mCanvas->updateMeshNormals(newVertexNormals, newVertexNormals_flat, (int)(newPosition_col/3));
         });
 
         b = new Button(tools, "Save");
@@ -852,10 +887,11 @@ class ExampleApplication : public nanogui::Screen
         });
 
         //This is how to implement a combo box, which is important in A1
-        new Label(anotherWindow, "Combo box", "sans-bold");
-        ComboBox *combo = new ComboBox(anotherWindow, {"Combo box item 1", "Combo box item 2", "Combo box item 3"});
+        new Label(anotherWindow, "Choose render mode", "sans-bold");
+        ComboBox *combo = new ComboBox(anotherWindow, {"smooth shaded", "flat shaded", "wireframe", "smooth&wireframe", "flat&wireframe"});
         combo->setCallback([&](int value) {
-            cout << "Combo box selected: " << value << endl;
+            cout << "Choose render mode: " << value << endl;
+            mCanvas->updateRenderMode(value);
         });
 
         new Label(anotherWindow, "Check box", "sans-bold");
