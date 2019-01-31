@@ -448,11 +448,9 @@ class MyGLCanvas : public nanogui::GLCanvas
         /* Take a look at this link to better understand OpenGL primitives */
         /* https://www.khronos.org/opengl/wiki/Primitive */
 
-        //12 triangles, each has three vertices
-        mShader.drawArray(GL_TRIANGLES, 0, num_triangles * 3);
-
-        //2 triangles, each has 3 lines, each line has 2 vertices
-        // mShader.drawArray(GL_LINES, 12 * 3, 2 * 3 * 2);
+        // draw triangles and lines
+        // mShader.drawArray(GL_TRIANGLES, 0, num_triangles * 3);
+        mShader.drawArray(GL_LINES, num_triangles * 3, num_triangles * 3 * 2);
 
         //mShader.drawIndexed(GL_TRIANGLES, 0, 12);
         //mShader.drawIndexed(GL_LINES, 12, 12);
@@ -724,10 +722,11 @@ class ExampleApplication : public nanogui::Screen
 
             // render model
             cout << "v_vertex length: " <<  v_faces.size() << endl;
-            MatrixXf newPositions = MatrixXf(3, v_faces.size()*3);
-            MatrixXf newColors = MatrixXf(3, v_faces.size()*3);
+            MatrixXf newPositions = MatrixXf(3, v_faces.size()*9);
+            // MatrixXf newLines = MatrixXf(3, v_faces.size()*6);
+            MatrixXf newColors = MatrixXf(3, v_faces.size()*9);
             MatrixXf newFaceNormals = MatrixXf(3, v_faces.size());
-            MatrixXf newVertexNormals = MatrixXf(3, v_faces.size()*3);
+            MatrixXf newVertexNormals = MatrixXf(3, v_faces.size()*9);
             vector<Vertex *> v_order;
             int check_count = 3;    // make sure we find 3 vertex every iteration
             int newPosition_col = 0;
@@ -766,6 +765,13 @@ class ExampleApplication : public nanogui::Screen
 
                     newPositions.col(newPosition_col) << v_vertex[vertex_idx_map[edge->start]]->x, v_vertex[vertex_idx_map[edge->start]]->y, v_vertex[vertex_idx_map[edge->start]]->z;
                     newColors.col(newPosition_col) << 1, 0, 0;
+                    newColors.col(v_faces.size()*3 + newPosition_col*2) << 0, 0, 0;
+                    newColors.col(v_faces.size()*3 + newPosition_col*2+1) << 0, 0, 0;
+
+                    // store vertex postion of lines
+                    newPositions.col(v_faces.size()*3 + newPosition_col*2) << v_vertex[vertex_idx_map[edge->start]]->x, v_vertex[vertex_idx_map[edge->start]]->y, v_vertex[vertex_idx_map[edge->start]]->z;
+                    newPositions.col(v_faces.size()*3 + newPosition_col*2+1) << v_vertex[vertex_idx_map[edge->end]]->x, v_vertex[vertex_idx_map[edge->end]]->y, v_vertex[vertex_idx_map[edge->end]]->z;
+                    
                     newPosition_col++;
                     if (edge->left == face)
                         edge = edge->left_next;
@@ -783,11 +789,7 @@ class ExampleApplication : public nanogui::Screen
             float mean_x = total_x / newPosition_col;
             float mean_y = total_y / newPosition_col;
             float mean_z = total_z / newPosition_col;
-            // cout << mean_x << endl;
-            // cout << mean_y << endl;
-            // cout << mean_z << endl;
-            // cout << max_axis_value << endl;
-            for(int i = 0; i < newPosition_col; i++){
+            for(int i = 0; i < newPosition_col*3; i++){
                 newPositions.col(i)[0] -= mean_x;
                 newPositions.col(i)[1] -= mean_y;
                 newPositions.col(i)[2] -= mean_z;
@@ -795,16 +797,18 @@ class ExampleApplication : public nanogui::Screen
             newPositions /= max_axis_value;
             newPositions *= 3;
 
-            // build new normal matrix for the use of rendering
-            cout << "start building normal matrix" << endl;
-            
+            // make lines out of original postion a little
+            for(int i = newPosition_col; i < newPosition_col*3; i++)
+                newPositions.col(i) *= 1.005;
+
+            // build new normal matrix for the use of rendering            
             for(int i = 0; i < v_order.size(); i++){
                 W_edge *e0 = v_vertex[vertex_idx_map[v_order[i]]] -> edge;
                 W_edge *edge = e0;
                 int face_count = 0;
                 newVertexNormals.col(i) << 0, 0, 0;
+                
                 do{
-                    
                     if(edge->end == v_vertex[vertex_idx_map[v_order[i]]]){
                         newVertexNormals.col(i) += newFaceNormals.col(face_idx_map[edge -> left]);
                         edge = edge->left_next;
@@ -816,9 +820,26 @@ class ExampleApplication : public nanogui::Screen
                     }
                 }while (edge != e0);
                 newVertexNormals.col(i) /= face_count;
+                newVertexNormals.col(v_order.size() + i*2) << newVertexNormals.col(i)[0], newVertexNormals.col(i)[1], newVertexNormals.col(i)[2];
+
+                e0 = v_vertex[vertex_idx_map[v_order[i]]] -> edge -> end -> edge;
+                edge = e0;
+                face_count = 0;
+                newVertexNormals.col(v_order.size() + i*2 + 1) << 0, 0, 0;
+                
+                do{
+                    if(edge->end == v_vertex[vertex_idx_map[v_order[i]]] -> edge -> end){
+                        newVertexNormals.col(i) += newFaceNormals.col(face_idx_map[edge -> left]);
+                        edge = edge->left_next;
+                        face_count++;
+                    }else{
+                        newVertexNormals.col(i) += newFaceNormals.col(face_idx_map[edge -> right]);
+                        edge = edge->right_next;
+                        face_count++;
+                    }
+                }while (edge != e0);
+                newVertexNormals.col(i) /= face_count;
             }
-            cout << "successfully budiled normal matrix" << endl;
-            // cout<<v_vertex[vertex_idx_map[v_order[0]]]->x<<endl;
 
             mCanvas->updateMeshPositions(newPositions, (int)(newPosition_col/3));
             mCanvas->updateMeshColors(newColors, (int)(newPosition_col/3));
