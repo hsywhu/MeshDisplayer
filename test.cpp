@@ -145,26 +145,6 @@ class MyGLCanvas : public nanogui::GLCanvas
         positions.col(35) << -1, -1, -1; //bottom left back
 
         //lines
-        /*
-	positions.col(36) <<  1,  1, -1; //top right back
-        positions.col(37) << -1,  1, -1; //bottom right back
-	
-	positions.col(38) << -1,  1, -1; //bottom right back
-        positions.col(39) << -1,  1, 1; //bottom right front
-
-	positions.col(40) << -1,  1, 1; //bottom right front
-	positions.col(41) <<  1,  1, -1; //top right back
-
-	positions.col(42) <<  1,  1, -1; //top right back
-	positions.col(43) << -1,  1, 1; //bottom right front
-
-	positions.col(44) << -1,  1, 1; //bottom right front
-        positions.col(45) <<  1,  1, 1; //top right front
-	
-	positions.col(46) <<  1,  1, -1; //top right back
-        positions.col(47) <<  1,  1, 1; //top right front
-	*/
-
         //notice that the line is jagged. You actually need to move them slightly out
         //To do that on an arbitrary mesh, just use the surface normals to your advantage!
 
@@ -338,7 +318,15 @@ class MyGLCanvas : public nanogui::GLCanvas
 
         // This the light origin position in your environment, which is totally arbitrary
         // however it is better if it is behind the observer
-        mShader.setUniform("LightPosition_worldspace", Vector3f(0, -5, -5));
+        mShader.setUniform("LightPosition_worldspace", Vector3f(5, -5, -5));
+
+        translation_.setIdentity();
+        scale_.setIdentity();
+        scale_(0, 0) = 0.25f;
+        scale_(1, 1) = 0.25f;
+        scale_(2, 2) = 0.25f;
+        view_.setIdentity();
+        projection_.setIdentity();
     }
 
     //flush data on call
@@ -383,7 +371,6 @@ class MyGLCanvas : public nanogui::GLCanvas
         render_mode = new_render_mode;
     }
 
-
     //This is how you capture mouse events in the screen. If you want to implement the arcball instead of using
     //sliders, then you need to map the right click drag motions to suitable rotation matrices
     virtual bool mouseButtonEvent(const Vector2i &p, int button, bool down, int modifiers) override {
@@ -405,22 +392,13 @@ class MyGLCanvas : public nanogui::GLCanvas
     {
         if (button == GLFW_MOUSE_BUTTON_3)
         {
-            // Get right click drag mouse event, print x and y coordinates only if right button pressed
-            // cout << p.x() << "     " << p.y() << endl;
-            //float radians0 = (rotation0_tracking - 0.5f)*2*2*M_PI;
-            //float radians1 = (rotation1 - 0.5f)*2*2*M_PI;
-            //then use this to rotate on just one axis
-            //mCanvas->setRotation(nanogui::Vector3f(radians0, radians1, 0.0f));
             mArcball->motion(p);
             return true;
         }
         if (button == GLFW_MOUSE_BUTTON_2){
             if(right_mouse_down){
-                // cout << rel.x() << " " << rel.y() << endl;
-                for(int i = 0; i < positions.cols(); i++){
-                    positions.col(i)[0] += rel.x()*0.02;
-                    positions.col(i)[1] -= rel.y()*0.02;
-                }
+                translation_(0, 3) += rel.x()*0.005;
+                translation_(1, 3) -= rel.y()*0.005;
             }
             return true;
         }
@@ -428,12 +406,11 @@ class MyGLCanvas : public nanogui::GLCanvas
     }
 
     virtual bool scrollEvent(const Vector2i &p, const Vector2f &rel){
-        cout << rel.x() << " " << rel.y() << endl;
-        float mesh_scale = 1 + rel.y()*0.015;
-        positions *= mesh_scale;
+        scale_(0, 0) += rel.y()*0.015;
+        scale_(1, 1) += rel.y()*0.015;
+        scale_(2, 2) += rel.y()*0.015;
         return true;
     }
-
 
     //OpenGL calls this method constantly to update the screen.
     virtual void drawGL() override
@@ -445,7 +422,6 @@ class MyGLCanvas : public nanogui::GLCanvas
         mShader.bind();
 
         //this simple command updates the positions matrix. You need to do the same for color and indices matrices too
-        
         mShader.uploadAttrib("vertexPosition_modelspace", positions);
         mShader.uploadAttrib("color", colors);
 
@@ -453,31 +429,16 @@ class MyGLCanvas : public nanogui::GLCanvas
             mShader.uploadAttrib("vertexNormal_modelspace", normals_flat);
         else
             mShader.uploadAttrib("vertexNormal_modelspace", normals);
-        
 
         //This is a way to perform a simple rotation using a 4x4 rotation matrix represented by rmat
         //mvp stands for ModelViewProjection matrix
         Matrix4f mvp;
-        // mvp.setIdentity();
-        // mvp.topLeftCorner<3, 3>() = Eigen::Matrix3f(Eigen::AngleAxisf(mRotation[0], Vector3f::UnitX()) *
-        //                                             Eigen::AngleAxisf(mRotation[1], Vector3f::UnitY()) *
-        //                                             Eigen::AngleAxisf(mRotation[2], Vector3f::UnitZ())) * 0.25f;
-
-        mvp = mRotation4x4 * 0.25f;
-        mvp(3, 3) = 1;
-
-        // cout << mvp << endl;
-
+        mvp = projection_ * view_ * (translation_ * mRotation4x4 * scale_);
         mShader.setUniform("MVP", mvp);
 
         // If enabled, does depth comparisons and update the depth buffer.
         // Avoid changing if you are unsure of what this means.
         glEnable(GL_DEPTH_TEST);
-
-        /* Draw 12 triangles starting at index 0 of your indices matrix */
-        /* Try changing the first input with GL_LINES, this will be useful in the assignment */
-        /* Take a look at this link to better understand OpenGL primitives */
-        /* https://www.khronos.org/opengl/wiki/Primitive */
 
         // draw triangles and lines according to render mode
         switch(render_mode){
@@ -492,11 +453,6 @@ class MyGLCanvas : public nanogui::GLCanvas
                     break;
             default: cout << "render mode error" << endl; break;
         }
-        // mShader.drawArray(GL_TRIANGLES, 0, num_triangles * 3);
-        // mShader.drawArray(GL_LINES, num_triangles * 3, num_triangles * 3 * 2);
-
-        //mShader.drawIndexed(GL_TRIANGLES, 0, 12);
-        //mShader.drawIndexed(GL_LINES, 12, 12);
         glDisable(GL_DEPTH_TEST);
     }
 
@@ -510,6 +466,10 @@ private:
     int num_triangles = 12;
     bool right_mouse_down = false;
 
+    nanogui::Matrix4f translation_;
+    nanogui::Matrix4f scale_;
+    nanogui::Matrix4f projection_;
+    nanogui::Matrix4f view_;
     /*
         render_mode:
             0: smooth shaded
@@ -533,7 +493,6 @@ class ExampleApplication : public nanogui::Screen
         using namespace nanogui;
 
         //OpenGL canvas demonstration
-
         //First, we need to create a window context in which we will render both the interface and OpenGL canvas
         Window *window = new Window(this, "GLCanvas Demo");
         window->setPosition(Vector2i(15, 15));
@@ -546,19 +505,6 @@ class ExampleApplication : public nanogui::Screen
 
         //This is how we add widgets, in this case, they are connected to the same window as the OpenGL canvas
         Widget *tools = new Widget(window);
-        // tools->setLayout(new BoxLayout(Orientation::Horizontal,
-        //                                Alignment::Middle, 0, 5));
-
-        // //then we start adding elements one by one as shown below
-        // Button *b0 = new Button(tools, "Random Color");
-        // b0->setCallback([this]() { mCanvas->setBackgroundColor(Vector4i(rand() % 256, rand() % 256, rand() % 256, 255)); });
-
-        // Button *b1 = new Button(tools, "Random Rotation");
-        // b1->setCallback([this]() { mCanvas->setRotation(nanogui::Vector3f((rand() % 100) / 100.0f, (rand() % 100) / 100.0f, (rand() % 100) / 100.0f)); });
-
-        //widgets demonstration
-        //Seems no use--------------------------------------
-        nanogui::GLShader mShader;
 
         //Then, we can create another window and insert other widgets into it
         Window *anotherWindow = new Window(this, "Basic widgets");
@@ -591,103 +537,6 @@ class ExampleApplication : public nanogui::Screen
             mCanvas->updateMeshPositions(newPositions, 4);
         });
         button->setTooltip("Demonstrates how a button can update the positions matrix.");
-
-        /*
-         * rotation using three slide bars
-        */
-
-        // //first slide bar
-        // new Label(anotherWindow, "Rotation on the first axis", "sans-bold");
-
-        // Widget *panelRot0 = new Widget(anotherWindow);
-        // panelRot0->setLayout(new BoxLayout(Orientation::Horizontal,
-        //                                    Alignment::Middle, 0, 0));
-
-        // Slider *rotSlider0 = new Slider(panelRot0);
-        // rotSlider0->setValue(0.5f);
-        // rotSlider0->setFixedWidth(150);
-        // rotSlider0->setCallback([&](float rotation0) {
-        //     // the middle point should be 0 rad
-        //     // then we need to multiply by 2 to make it go from -1. to 1.
-        //     // then we make it go from -2*M_PI to 2*M_PI
-        //     float radians0 = (rotation0 - 0.5f) * 2 * 2 * M_PI;
-        //     float radians1 = (rotation1_tracking - 0.5f) * 2 * 2 * M_PI;
-        //     float radians2 = (rotation2_tracking - 0.5f) * 2 * 2 * M_PI;
-        //     //then use this to rotate on just one axis
-        //     mCanvas->setRotation(nanogui::Vector3f(radians0, radians1, radians2));
-        //     //when you implement the other sliders and/or the Arcball, you need to keep track
-        //     //of the other rotations used for the second and third axis... It will not stay as 0.0f
-        //     rotation0_tracking = rotation0;
-        // });
-
-        // //second slide bar
-        // new Label(anotherWindow, "Rotation on the second axis", "sans-bold");
-
-        // Widget *panelRot1 = new Widget(anotherWindow);
-        // panelRot1->setLayout(new BoxLayout(Orientation::Horizontal,
-        //                                    Alignment::Middle, 0, 0));
-
-        // Slider *rotSlider1 = new Slider(panelRot1);
-        // rotSlider1->setValue(0.5f);
-        // rotSlider1->setFixedWidth(150);
-        // rotSlider1->setCallback([&](float rotation1) {
-        //     // the middle point should be 0 rad
-        //     // then we need to multiply by 2 to make it go from -1. to 1.
-        //     // then we make it go from -2*M_PI to 2*M_PI
-        //     float radians0 = (rotation0_tracking - 0.5f) * 2 * 2 * M_PI;
-        //     float radians1 = (rotation1 - 0.5f) * 2 * 2 * M_PI;
-        //     float radians2 = (rotation2_tracking - 0.5f) * 2 * 2 * M_PI;
-        //     //then use this to rotate on just one axis
-        //     mCanvas->setRotation(nanogui::Vector3f(radians0, radians1, radians2));
-        //     //when you implement the other sliders and/or the Arcball, you need to keep track
-        //     //of the other rotations used for the second and third axis... It will not stay as 0.0f
-        //     rotation1_tracking = rotation1;
-        // });
-
-        // //third slide bar
-        // new Label(anotherWindow, "Rotation on the third axis", "sans-bold");
-
-        // Widget *panelRot2 = new Widget(anotherWindow);
-        // panelRot2->setLayout(new BoxLayout(Orientation::Horizontal,
-        //                                    Alignment::Middle, 0, 0));
-
-        // Slider *rotSlider2 = new Slider(panelRot2);
-        // rotSlider2->setValue(0.5f);
-        // rotSlider2->setFixedWidth(150);
-        // rotSlider2->setCallback([&](float rotation2) {
-        //     // the middle point should be 0 rad
-        //     // then we need to multiply by 2 to make it go from -1. to 1.
-        //     // then we make it go from -2*M_PI to 2*M_PI
-        //     float radians0 = (rotation0_tracking - 0.5f) * 2 * 2 * M_PI;
-        //     float radians1 = (rotation1_tracking - 0.5f) * 2 * 2 * M_PI;
-        //     float radians2 = (rotation2 - 0.5f) * 2 * 2 * M_PI;
-        //     //then use this to rotate on just one axis
-        //     mCanvas->setRotation(nanogui::Vector3f(radians0, radians1, radians2));
-        //     //when you implement the other sliders and/or the Arcball, you need to keep track
-        //     //of the other rotations used for the second and third axis... It will not stay as 0.0f
-        //     rotation2_tracking = rotation2;
-        // });
-
-        //Message dialog demonstration, it should be pretty straightforward
-        // new Label(anotherWindow, "Message dialog", "sans-bold");
-        // tools = new Widget(anotherWindow);
-        // tools->setLayout(new BoxLayout(Orientation::Horizontal,
-        //                                Alignment::Middle, 0, 6));
-        // Button *b = new Button(tools, "Info");
-        // b->setCallback([&] {
-        //     auto dlg = new MessageDialog(this, MessageDialog::Type::Information, "Title", "This is an information message");
-        //     dlg->setCallback([](int result) { cout << "Dialog result: " << result << endl; });
-        // });
-        // b = new Button(tools, "Warn");
-        // b->setCallback([&] {
-        //     auto dlg = new MessageDialog(this, MessageDialog::Type::Warning, "Title", "This is a warning message");
-        //     dlg->setCallback([](int result) { cout << "Dialog result: " << result << endl; });
-        // });
-        // b = new Button(tools, "Ask");
-        // b->setCallback([&] {
-        //     auto dlg = new MessageDialog(this, MessageDialog::Type::Warning, "Title", "This is a question message", "Yes", "No", true);
-        //     dlg->setCallback([](int result) { cout << "Dialog result: " << result << endl; });
-        // });
 
         //Here is how you can get the string that represents file paths both for opening and for saving.
         //you need to implement the rest of the parser logic.
@@ -903,12 +752,34 @@ class ExampleApplication : public nanogui::Screen
 
         b = new Button(tools, "Save");
         b->setCallback([&] {
-            cout << "File dialog result: " << file_dialog({{"png", "Portable Network Graphics"}, {"txt", "Text file"}}, true) << endl;
+            string file_dir = file_dialog({{"obj", "3D image file"}}, true);
+            std::ofstream fout(file_dir, std::ofstream::out);
+            if (fout.is_open()){
+                fout << "# " << v_vertex.size() << " " << v_faces.size() << endl;
+                for(auto vertex : v_vertex)
+                    fout << "v " << vertex->x << " " << vertex->y << " " << vertex->z << endl;
+                for(auto face : v_faces){
+                    W_edge *e0 = face->edge;
+                    W_edge *edge = e0;
+                    fout << "f";
+                    do {
+                        fout << " " << vertex_idx_map[edge->start] + 1;      // The faces data
+                        if (edge->left == face)
+                            edge = edge->left_next;
+                        else
+                            edge = edge->right_next;
+                    } while (edge != e0);
+                    fout << endl;
+                }
+                fout.close();
+            }else
+                cout << "error creating obj file" << endl;
+            cout << "successfully saved mesh data to obj file" << endl;
         });
 
         //This is how to implement a combo box, which is important in A1
         new Label(anotherWindow, "Choose render mode", "sans-bold");
-        ComboBox *combo = new ComboBox(anotherWindow, {"smooth shaded", "flat shaded", "wireframe", "smooth&wireframe", "flat&wireframe"});
+        ComboBox *combo = new ComboBox(anotherWindow, {"Smooth shaded", "Flat shaded", "Wireframe", "Smooth&Wireframe", "Flat&Wireframe"});
         combo->setCallback([&](int value) {
             cout << "Choose render mode: " << value << endl;
             mCanvas->updateRenderMode(value);
@@ -917,43 +788,10 @@ class ExampleApplication : public nanogui::Screen
         tools = new Widget(anotherWindow);
         tools->setLayout(new BoxLayout(Orientation::Horizontal,
                                        Alignment::Middle, 0, 20));
-        b = new Button(tools, "quit");
+        b = new Button(tools, "Quit");
         b->setCallback([&] {
             nanogui::shutdown();
         });
-
-        // new Label(anotherWindow, "Check box", "sans-bold");
-        // CheckBox *cb = new CheckBox(anotherWindow, "Flag 1",
-        //                             [](bool state) { cout << "Check box 1 state: " << state << endl; });
-        // cb->setChecked(true);
-        // cb = new CheckBox(anotherWindow, "Flag 2",
-        //                   [](bool state) { cout << "Check box 2 state: " << state << endl; });
-        // new Label(anotherWindow, "Progress bar", "sans-bold");
-        // mProgress = new ProgressBar(anotherWindow);
-
-        // new Label(anotherWindow, "Slider and text box", "sans-bold");
-
-        // Widget *panel = new Widget(anotherWindow);
-        // panel->setLayout(new BoxLayout(Orientation::Horizontal,
-        //                                Alignment::Middle, 0, 20));
-
-        //Fancy slider that has a callback function to update another interface element
-        // Slider *slider = new Slider(panel);
-        // slider->setValue(0.5f);
-        // slider->setFixedWidth(80);
-        // TextBox *textBox = new TextBox(panel);
-        // textBox->setFixedSize(Vector2i(60, 25));
-        // textBox->setValue("50");
-        // textBox->setUnits("%");
-        // slider->setCallback([textBox](float value) {
-        //     textBox->setValue(std::to_string((int)(value * 100)));
-        // });
-        // slider->setFinalCallback([&](float value) {
-        //     cout << "Final slider value: " << (int)(value * 100) << endl;
-        // });
-        // textBox->setFixedSize(Vector2i(60, 25));
-        // textBox->setFontSize(20);
-        // textBox->setAlignment(TextBox::Alignment::Right);
 
         //Method to assemble the interface defined before it is called
         performLayout();
