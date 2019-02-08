@@ -40,8 +40,6 @@
 #include <cstdint>
 #include <memory>
 #include <utility>
-#include <stdlib.h>
-#include <time.h>
 
 #if defined(__GNUC__)
 #pragma GCC diagnostic ignored "-Wmissing-field-initializers"
@@ -835,7 +833,6 @@ class ExampleApplication : public nanogui::Screen
                 }else{
                     int K = idx_vertex.size();
                     float beta = ((5.0/8.0)-pow((3.0/8.0)+cos(2.0*PI/K)/4.0, 2.0))/K;
-                    cout << "beta" << beta << endl;
                     float new_x = 0;
                     float new_y = 0;
                     float new_z = 0;
@@ -1000,12 +997,11 @@ class ExampleApplication : public nanogui::Screen
                 }
             }
             
-            cout << "successfully saved data to winged-edge data structure" << endl;
+            cout << "successfully reloaded winged edge data structure" << endl;
 
             // render model
             cout << "v_vertex length: " <<  v_faces.size() << endl;
             MatrixXf newPositions = MatrixXf(3, v_faces.size()*9);
-            // MatrixXf newLines = MatrixXf(3, v_faces.size()*6);
             MatrixXf newColors = MatrixXf(3, v_faces.size()*9);
             MatrixXf newFaceNormals = MatrixXf(3, v_faces.size());
             MatrixXf newVertexNormals = MatrixXf(3, v_faces.size()*9);
@@ -1030,8 +1026,6 @@ class ExampleApplication : public nanogui::Screen
                 MatrixXf temp_face = MatrixXf(3, 3);
                 do {
                     temp_face.col(check_count) << v_vertex[vertex_idx_map[edge->start]]->x, v_vertex[vertex_idx_map[edge->start]]->y, v_vertex[vertex_idx_map[edge->start]]->z;
-                    // if(newPosition_col == 0)
-                        // cout << v_vertex[vertex_idx_map[edge->start]]->x << endl;
                     v_order.push_back(edge->start);
                     check_count++;
 
@@ -1132,6 +1126,139 @@ class ExampleApplication : public nanogui::Screen
 
         b = new Button(tools, "Butterfly");
         b->setCallback([&] {
+            subd_vertex_x.clear();
+            subd_vertex_y.clear();
+            subd_vertex_z.clear();
+            subd_face_0.clear();
+            subd_face_1.clear();
+            subd_face_2.clear();
+            edge_rule.clear();
+            // copy the original vertex position informations to new subdivision vectors
+            for (auto this_v : v_vertex) {
+                subd_vertex_x.push_back(this_v->x);
+                subd_vertex_y.push_back(this_v->y);
+                subd_vertex_z.push_back(this_v->z);
+            }
+            // go through all the edges, apply edge rules to compute new vertexs
+            for(auto face : v_faces){
+                W_edge *e0 = face->edge;
+                W_edge *edge = e0;
+                do {
+                    if (edge->left == face)
+                        edge = edge->left_next;
+                    else{
+                        edge = edge->right_next;
+                    }
+                    pair<int, int> p(vertex_idx_map[edge->start], vertex_idx_map[edge->end]);
+                    pair<int, int> p_inv(vertex_idx_map[edge->end], vertex_idx_map[edge->start]);
+                    std::map<pair<int, int>, int>::iterator edge_rule_it;
+                    std::map<pair<int, int>, int>::iterator edge_rule_inv_it;
+                    edge_rule_it = edge_rule.find(p);
+                    edge_rule_inv_it = edge_rule.find(p_inv);
+                    int idx = 0;
+                    if (edge_rule_it==edge_rule.end() && edge_rule_inv_it==edge_rule.end()){
+                        float new_x = 0;
+                        float new_y = 0;
+                        float new_z = 0;
+
+                        // compute new vertex position
+                        // firstly see if both side of the edge are regular degree
+                        // starting vertex degree
+                        W_edge *e1 = edge->start->edge;
+                        W_edge *edge1 = e1;
+                        int start_degree = 0;
+                        do{
+                            if (edge1->start == this_v)
+                                edge1 = edge1 -> right_next;
+                            else
+                                edge1 = edge1 -> left_next;
+                            start_degree++;
+                        }while(edge1 != e1);
+
+                        // ending vertex degree
+                        e1 = edge->end->edge;
+                        edge1 = e1;
+                        int end_degree = 0;
+                        do{
+                            if (edge1->start == this_v)
+                                edge1 = edge1 -> right_next;
+                            else
+                                edge1 = edge1 -> left_next;
+                            end_degree++;
+                        }while(edge1 != e1);
+
+                        // apply different masks according to different cases
+                        if (start_degree == 6 && end_degree == 6){
+                            new_x += (1.0/2.0) * edge->start->x;
+                            new_y += (1.0/2.0) * edge->start->y;
+                            new_z += (1.0/2.0) * edge->start->z;
+
+                            new_x += (1.0/2.0) * edge->end->x;
+                            new_y += (1.0/2.0) * edge->end->y;
+                            new_z += (1.0/2.0) * edge->end->z;
+
+                            new_x += (1.0/8.0) * edge->left_next->end->x;
+                            new_y += (1.0/8.0) * edge->left_next->end->y;
+                            new_z += (1.0/8.0) * edge->left_next->end->z;
+
+                            new_x += (1.0/8.0) * edge->right_next->end->x;
+                            new_y += (1.0/8.0) * edge->right_next->end->y;
+                            new_z += (1.0/8.0) * edge->right_next->end->z;
+
+                            new_x += -(1.0/16.0) * edge->left_next->right_next->end->x;
+                            new_y += -(1.0/16.0) * edge->left_next->right_next->end->y;
+                            new_z += -(1.0/16.0) * edge->left_next->right_next->end->z;
+
+                            new_x += -(1.0/16.0) * edge->left_next->left_next->right_next->end->x;
+                            new_y += -(1.0/16.0) * edge->left_next->left_next->right_next->end->y;
+                            new_z += -(1.0/16.0) * edge->left_next->left_next->right_next->end->z;
+
+                            new_x += -(1.0/16.0) * edge->right_next->right_next->end->x;
+                            new_y += -(1.0/16.0) * edge->right_next->right_next->end->y;
+                            new_z += -(1.0/16.0) * edge->right_next->right_next->end->z;
+
+                            new_x += -(1.0/16.0) * edge->right_next->left_next->right_next->end->x;
+                            new_y += -(1.0/16.0) * edge->right_next->left_next->right_next->end->y;
+                            new_z += -(1.0/16.0) * edge->right_next->left_next->right_next->end->z;
+                        }else if (start_degree == 6 && end_degree != 6){
+                            if (end_degree == 3){
+                                new_x += (5.0/12.0) * edge->start->x;
+                                new_y += (5.0/12.0) * edge->start->y;
+                                new_z += (5.0/12.0) * edge->start->z;
+
+                                new_x += (3.0/4.0) * edge->end->x;
+                                new_y += (3.0/4.0) * edge->end->y;
+                                new_z += (3.0/4.0) * edge->end->z;
+
+                                new_x += -(1.0/12.0) * edge->left_next->end->x;
+                                new_y += -(1.0/12.0) * edge->left_next->end->y;
+                                new_z += -(1.0/12.0) * edge->left_next->end->z;
+
+                                new_x += -(1.0/12.0) * edge->right_next->end->x;
+                                new_y += -(1.0/12.0) * edge->right_next->end->y;
+                                new_z += -(1.0/12.0) * edge->right_next->end->z;
+                            }else if (end_degree == 4){
+                                new_x += (3.0/8.0) * edge->start->x;
+                                new_y += (3.0/8.0) * edge->start->y;
+                                new_z += (3.0/8.0) * edge->start->z;
+                            }
+                        }else if (start_degree != 6 && end_degree == 6){
+
+                        }else{
+
+                        }
+
+
+                        subd_vertex_x.push_back(new_x);
+                        subd_vertex_y.push_back(new_y);
+                        subd_vertex_z.push_back(new_z);
+                        idx = subd_vertex_x.size() - 1;
+                        edge_rule[p] = idx;
+                        edge_rule[p_inv] = idx;
+                    }
+                } while (edge != e0);   
+            }
+            cout << "successfully applied edge rule" << endl;
         });
 
         Button *quit_button = new Button(anotherWindow, "Quit");
@@ -1288,4 +1415,3 @@ int main(int /* argc */, char ** /* argv */)
 
     return 0;
 }
-
