@@ -40,6 +40,8 @@
 #include <cstdint>
 #include <memory>
 #include <utility>
+#include <stdlib.h>
+#include <time.h>
 
 #if defined(__GNUC__)
 #pragma GCC diagnostic ignored "-Wmissing-field-initializers"
@@ -827,12 +829,13 @@ class ExampleApplication : public nanogui::Screen
                         new_y += v_vertex[idx]->y;
                         new_z += v_vertex[idx]->z;
                     }
-                    subd_vertex_x.push_back((5/8)*this_v->x+(new_x/16));
-                    subd_vertex_y.push_back((5/8)*this_v->y+(new_y/16));
-                    subd_vertex_z.push_back((5/8)*this_v->z+(new_z/16));
+                    subd_vertex_x.push_back((this_v->x)*5.0/8.0+(new_x/16.0));
+                    subd_vertex_y.push_back((this_v->y)*5.0/8.0+(new_y/16.0));
+                    subd_vertex_z.push_back((this_v->z)*5.0/8.0+(new_z/16.0));
                 }else{
                     int K = idx_vertex.size();
-                    float beta = ((5/8)-pow((3/8)+((1/4)*(cos(2*PI/K))), 2.0))/K;
+                    float beta = ((5.0/8.0)-pow((3.0/8.0)+cos(2.0*PI/K)/4.0, 2.0))/K;
+                    cout << "beta" << beta << endl;
                     float new_x = 0;
                     float new_y = 0;
                     float new_z = 0;
@@ -841,9 +844,10 @@ class ExampleApplication : public nanogui::Screen
                         new_y += v_vertex[idx]->y;
                         new_z += v_vertex[idx]->z;
                     }
-                    subd_vertex_x.push_back((1-K*beta)*this_v->x+(new_x*beta));
-                    subd_vertex_y.push_back((1-K*beta)*this_v->y+(new_y*beta));
-                    subd_vertex_z.push_back((1-K*beta)*this_v->z+(new_z*beta));
+                    float center_beta = 1-K*beta;
+                    subd_vertex_x.push_back(this_v->x*center_beta+(new_x*beta));
+                    subd_vertex_y.push_back(this_v->y*center_beta+(new_y*beta));
+                    subd_vertex_z.push_back(this_v->z*center_beta+(new_z*beta));
                 }
             }
             if (subd_vertex_x.size() == v_vertex.size())
@@ -871,22 +875,24 @@ class ExampleApplication : public nanogui::Screen
                         float new_x = 0;
                         float new_y = 0;
                         float new_z = 0;
-                        new_x += (3/8)*edge->start->x;
-                        new_y += (3/8)*edge->start->y;
-                        new_z += (3/8)*edge->start->z;
+                        float tmp = edge->start->x;
+                        new_x += (edge->start->x)*3.0/8.0;
+                        // cout << "new_x" << new_x << endl;
+                        new_y += (edge->start->y)*3.0/8.0;
+                        new_z += (edge->start->z)*3.0/8.0;
 
-                        new_x += (3/8)*edge->end->x;
-                        new_y += (3/8)*edge->end->y;
-                        new_z += (3/8)*edge->end->z;
+                        new_x += (edge->end->x)*3.0/8.0;
+                        new_y += (edge->end->y)*3.0/8.0;
+                        new_z += (edge->end->z)*3.0/8.0;
 
-                        new_x += (1/8)*edge->right_next->end->x;
-                        new_y += (1/8)*edge->right_next->end->y;
-                        new_z += (1/8)*edge->right_next->end->z;
+                        new_x += (edge->right_next->end->x)/8.0;
+                        new_y += (edge->right_next->end->y)/8.0;
+                        new_z += (edge->right_next->end->z)/8.0;
 
-                        new_x += (1/8)*edge->left_next->end->x;
-                        new_y += (1/8)*edge->left_next->end->y;
-                        new_z += (1/8)*edge->left_next->end->z;
-
+                        new_x += (edge->left_next->end->x)/8.0;
+                        new_y += (edge->left_next->end->y)/8.0;
+                        new_z += (edge->left_next->end->z)/8.0;
+                        
                         subd_vertex_x.push_back(new_x);
                         subd_vertex_y.push_back(new_y);
                         subd_vertex_z.push_back(new_z);
@@ -948,7 +954,6 @@ class ExampleApplication : public nanogui::Screen
                 v_vertex.push_back(vertex_temp);
                 vertex_idx_map[vertex_temp] = v_vertex.size() - 1;
             }
-            int count_ = 0;
             for (int subd_face_idx = 0; subd_face_idx<subd_face_0.size(); subd_face_idx++){
                 vector<int> face_idx;
                 face_idx.push_back(subd_face_0[subd_face_idx]+1);
@@ -964,7 +969,6 @@ class ExampleApplication : public nanogui::Screen
                     Vertex *v1 = v_vertex[face_idx[(i+1)%face_idx.size()] - 1];
                     W_edge *edge_temp = new W_edge(v0, v1);
                     pair<int, int> p(face_idx[i], face_idx[(i+1)%face_idx.size()]);
-                    cout << face_idx[i] << " " << face_idx[(i+1)%face_idx.size()] << endl;
                     face_temp -> edge = edge_temp;
                     edge_temp -> left = face_temp;
                     v_Wedges[p] = edge_temp;
@@ -994,8 +998,6 @@ class ExampleApplication : public nanogui::Screen
                         edge2->right_next = edge->left_next;
                     }
                 }
-                cout << count_ << endl;
-                count_++;
             }
             
             cout << "successfully saved data to winged-edge data structure" << endl;
