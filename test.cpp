@@ -49,6 +49,8 @@
 #pragma warning(disable : 4457 4456 4005 4312)
 #endif
 
+#define PI 3.14159265
+
 #define STB_IMAGE_IMPLEMENTATION
 #include <stb_image.h>
 
@@ -704,7 +706,7 @@ class ExampleApplication : public nanogui::Screen
             for(int i = newPosition_col; i < newPosition_col*3; i++)
                 newPositions.col(i) *= 1.005;
 
-            // build new normal matrix for the use of rendering            
+            // build new normal matrix for the use of rendering
             for(int i = 0; i < v_order.size(); i++){
                 W_edge *e0 = v_vertex[vertex_idx_map[v_order[i]]] -> edge;
                 W_edge *edge = e0;
@@ -785,11 +787,353 @@ class ExampleApplication : public nanogui::Screen
             mCanvas->updateRenderMode(value);
         });
 
+        new Label(anotherWindow, "subdivision", "sans-bold");
         tools = new Widget(anotherWindow);
         tools->setLayout(new BoxLayout(Orientation::Horizontal,
-                                       Alignment::Middle, 0, 20));
-        b = new Button(tools, "Quit");
+                                       Alignment::Middle, 0, 6));
+        b = new Button(tools, "Loop");
         b->setCallback([&] {
+            // apply vertex rule
+            subd_vertex_x.clear();
+            subd_vertex_y.clear();
+            subd_vertex_z.clear();
+            subd_face_0.clear();
+            subd_face_1.clear();
+            subd_face_2.clear();
+            edge_rule.clear();
+            for (auto this_v : v_vertex) {
+                W_edge *e0 = this_v->edge;
+                W_edge *edge = e0;
+                vector<int> idx_vertex;
+                int count = 0;
+                do{
+            
+                    if (edge->start == this_v)
+                        edge = edge -> right_next;
+                    else
+                        edge = edge -> left_next;
+                    if (edge->start == this_v)
+                        idx_vertex.push_back(vertex_idx_map[edge->end]);
+                    count++;
+                }while(edge != e0);
+                if(count != idx_vertex.size())
+                    cout << "error finding surrounding vertex" << endl;
+                if(idx_vertex.size() == 6){
+                    float new_x = 0;
+                    float new_y = 0;
+                    float new_z = 0;
+                    for(int idx : idx_vertex){
+                        new_x += v_vertex[idx]->x;
+                        new_y += v_vertex[idx]->y;
+                        new_z += v_vertex[idx]->z;
+                    }
+                    subd_vertex_x.push_back((5/8)*this_v->x+(new_x/16));
+                    subd_vertex_y.push_back((5/8)*this_v->y+(new_y/16));
+                    subd_vertex_z.push_back((5/8)*this_v->z+(new_z/16));
+                }else{
+                    int K = idx_vertex.size();
+                    float beta = ((5/8)-pow((3/8)+((1/4)*(cos(2*PI/K))), 2.0))/K;
+                    float new_x = 0;
+                    float new_y = 0;
+                    float new_z = 0;
+                    for(int idx : idx_vertex){
+                        new_x += v_vertex[idx]->x;
+                        new_y += v_vertex[idx]->y;
+                        new_z += v_vertex[idx]->z;
+                    }
+                    subd_vertex_x.push_back((1-K*beta)*this_v->x+(new_x*beta));
+                    subd_vertex_y.push_back((1-K*beta)*this_v->y+(new_y*beta));
+                    subd_vertex_z.push_back((1-K*beta)*this_v->z+(new_z*beta));
+                }
+            }
+            if (subd_vertex_x.size() == v_vertex.size())
+                cout << "successfully applied vertex rule" << endl;
+            else
+                cout << "error applying vertex rule" << endl;
+            // apply edge rule
+            for(auto face : v_faces){
+                W_edge *e0 = face->edge;
+                W_edge *edge = e0;
+                do {
+                    if (edge->left == face)
+                        edge = edge->left_next;
+                    else{
+                        edge = edge->right_next;
+                    }
+                    pair<int, int> p(vertex_idx_map[edge->start], vertex_idx_map[edge->end]);
+                    pair<int, int> p_inv(vertex_idx_map[edge->end], vertex_idx_map[edge->start]);
+                    std::map<pair<int, int>, int>::iterator edge_rule_it;
+                    std::map<pair<int, int>, int>::iterator edge_rule_inv_it;
+                    edge_rule_it = edge_rule.find(p);
+                    edge_rule_inv_it = edge_rule.find(p_inv);
+                    int idx = 0;
+                    if(edge_rule_it==edge_rule.end() && edge_rule_inv_it==edge_rule.end()){
+                        float new_x = 0;
+                        float new_y = 0;
+                        float new_z = 0;
+                        new_x += (3/8)*edge->start->x;
+                        new_y += (3/8)*edge->start->y;
+                        new_z += (3/8)*edge->start->z;
+
+                        new_x += (3/8)*edge->end->x;
+                        new_y += (3/8)*edge->end->y;
+                        new_z += (3/8)*edge->end->z;
+
+                        new_x += (1/8)*edge->right_next->end->x;
+                        new_y += (1/8)*edge->right_next->end->y;
+                        new_z += (1/8)*edge->right_next->end->z;
+
+                        new_x += (1/8)*edge->left_next->end->x;
+                        new_y += (1/8)*edge->left_next->end->y;
+                        new_z += (1/8)*edge->left_next->end->z;
+
+                        subd_vertex_x.push_back(new_x);
+                        subd_vertex_y.push_back(new_y);
+                        subd_vertex_z.push_back(new_z);
+                        idx = subd_vertex_x.size() - 1;
+                        edge_rule[p] = idx;
+                        edge_rule[p_inv] = idx;
+                    }
+                } while (edge != e0);   
+            }
+            for(auto face : v_faces){
+                W_edge *e0 = face->edge;
+                W_edge *edge = e0;
+                vector<int> vertex_idx;
+
+                vertex_idx.push_back(vertex_idx_map[edge->start]);
+                pair<int, int> p0(vertex_idx_map[edge->start], vertex_idx_map[edge->end]);
+                // cout << edge_rule.find(p)->second << endl;
+                vertex_idx.push_back(edge_rule.find(p0)->second);
+                vertex_idx.push_back(vertex_idx_map[edge->end]);
+                pair<int, int> p1(vertex_idx_map[edge->left_next->start], vertex_idx_map[edge->left_next->end]);
+                vertex_idx.push_back(edge_rule.find(p1)->second);
+                vertex_idx.push_back(vertex_idx_map[edge->left_next->end]);
+                pair<int, int> p2(vertex_idx_map[edge->left_next->left_next->start], vertex_idx_map[edge->left_next->left_next->end]);
+                vertex_idx.push_back(edge_rule.find(p2)->second);
+
+                subd_face_0.push_back(vertex_idx[0]);
+                subd_face_1.push_back(vertex_idx[1]);
+                subd_face_2.push_back(vertex_idx[5]);
+
+                subd_face_0.push_back(vertex_idx[5]);
+                subd_face_1.push_back(vertex_idx[1]);
+                subd_face_2.push_back(vertex_idx[3]);
+
+                subd_face_0.push_back(vertex_idx[5]);
+                subd_face_1.push_back(vertex_idx[3]);
+                subd_face_2.push_back(vertex_idx[4]);
+
+                subd_face_0.push_back(vertex_idx[1]);
+                subd_face_1.push_back(vertex_idx[2]);
+                subd_face_2.push_back(vertex_idx[3]);
+            }
+            cout << v_faces.size() << " " << subd_vertex_x.size() << endl;
+            cout << "successfully applied edge rule" << endl;
+
+            // all vertex and face data have been saved, reload them
+            v_vertex.clear();
+            v_faces.clear();
+            v_Wedges.clear();
+            vertex_idx_map.clear();
+            face_idx_map.clear();
+            
+            for (int subd_vertex_idx = 0; subd_vertex_idx<subd_vertex_x.size(); subd_vertex_idx++){
+                vector<float> vertex_p;
+                vertex_p.push_back(subd_vertex_x[subd_vertex_idx]);
+                vertex_p.push_back(subd_vertex_y[subd_vertex_idx]);
+                vertex_p.push_back(subd_vertex_z[subd_vertex_idx]);
+                //start loading vertex data to vector
+                Vertex *vertex_temp = new Vertex(vertex_p[0], vertex_p[1], vertex_p[2]);
+                v_vertex.push_back(vertex_temp);
+                vertex_idx_map[vertex_temp] = v_vertex.size() - 1;
+            }
+            int count_ = 0;
+            for (int subd_face_idx = 0; subd_face_idx<subd_face_0.size(); subd_face_idx++){
+                vector<int> face_idx;
+                face_idx.push_back(subd_face_0[subd_face_idx]+1);
+                face_idx.push_back(subd_face_1[subd_face_idx]+1);
+                face_idx.push_back(subd_face_2[subd_face_idx]+1);
+                Face *face_temp = new Face();
+                v_faces.push_back(face_temp);
+                face_idx_map[face_temp] = v_faces.size() - 1;
+                
+                // start loading edge and face data to vector
+                for(int i = 0; i < face_idx.size(); i++){
+                    Vertex *v0 = v_vertex[face_idx[i] - 1];
+                    Vertex *v1 = v_vertex[face_idx[(i+1)%face_idx.size()] - 1];
+                    W_edge *edge_temp = new W_edge(v0, v1);
+                    pair<int, int> p(face_idx[i], face_idx[(i+1)%face_idx.size()]);
+                    cout << face_idx[i] << " " << face_idx[(i+1)%face_idx.size()] << endl;
+                    face_temp -> edge = edge_temp;
+                    edge_temp -> left = face_temp;
+                    v_Wedges[p] = edge_temp;
+                    v0->edge = edge_temp;
+                }
+                
+                // combine old data with new data
+                for(int i = 0; i < face_idx.size(); i++){
+                    pair<int, int> p(face_idx[i], face_idx[(i + 1) % face_idx.size()]);
+                    pair<int, int> p_prev(face_idx[(i - 1 + face_idx.size()) % face_idx.size()], face_idx[i]);
+                    pair<int, int> p_next(face_idx[(i + 1) % face_idx.size()], face_idx[(i + 2) % face_idx.size()]);
+                    pair<int, int> p_reverse(face_idx[(i + 1) % face_idx.size()], face_idx[i]);
+                    W_edge *edge = v_Wedges.find(p)->second;               // This edge
+                    W_edge *edge_prev = v_Wedges.find(p_prev)->second;     // The previous edge
+                    W_edge *edge_next = v_Wedges.find(p_next)->second;     // The next edge
+                    edge->left_prev = edge_prev;
+                    edge->left_next = edge_next;
+
+                    // if the reverse of p exists, we can update right side of p as well as the found p
+                    if(v_Wedges.find(p_reverse) != v_Wedges.end()){
+                        W_edge *edge2 = v_Wedges.find(p_reverse)->second;
+                        edge->right = edge2->left;
+                        edge->right_prev = edge2->left_prev;
+                        edge->right_next = edge2->left_next;
+                        edge2->right = edge->left;
+                        edge2->right_prev = edge->left_prev;
+                        edge2->right_next = edge->left_next;
+                    }
+                }
+                cout << count_ << endl;
+                count_++;
+            }
+            
+            cout << "successfully saved data to winged-edge data structure" << endl;
+
+            // render model
+            cout << "v_vertex length: " <<  v_faces.size() << endl;
+            MatrixXf newPositions = MatrixXf(3, v_faces.size()*9);
+            // MatrixXf newLines = MatrixXf(3, v_faces.size()*6);
+            MatrixXf newColors = MatrixXf(3, v_faces.size()*9);
+            MatrixXf newFaceNormals = MatrixXf(3, v_faces.size());
+            MatrixXf newVertexNormals = MatrixXf(3, v_faces.size()*9);
+            MatrixXf newVertexNormals_flat = MatrixXf(3, v_faces.size()*9);
+            vector<Vertex *> v_order;
+            int check_count = 3;    // make sure we find 3 vertex every iteration
+            int newPosition_col = 0;
+            int newFaceNormal_col = 0;
+            float max_axis_value = -100000; // record max value among all three axises for normalization
+            float total_x = 0;  // record total value for each axises for centeralization
+            float total_y = 0;
+            float total_z = 0;
+
+            // build new position and color matrix for the use of rendering
+            for (auto face : v_faces) {
+                W_edge *e0 = face->edge;
+                W_edge *edge = e0;
+                if(check_count != 3){
+                    cout << "unqualified!" << endl;
+                }
+                check_count = 0;
+                MatrixXf temp_face = MatrixXf(3, 3);
+                do {
+                    temp_face.col(check_count) << v_vertex[vertex_idx_map[edge->start]]->x, v_vertex[vertex_idx_map[edge->start]]->y, v_vertex[vertex_idx_map[edge->start]]->z;
+                    // if(newPosition_col == 0)
+                        // cout << v_vertex[vertex_idx_map[edge->start]]->x << endl;
+                    v_order.push_back(edge->start);
+                    check_count++;
+
+                    if(abs(v_vertex[vertex_idx_map[edge->start]]->x) > max_axis_value)
+                        max_axis_value = abs(v_vertex[vertex_idx_map[edge->start]]->x);
+                    if(abs(v_vertex[vertex_idx_map[edge->start]]->y) > max_axis_value)
+                        max_axis_value = abs(v_vertex[vertex_idx_map[edge->start]]->y);
+                    if(abs(v_vertex[vertex_idx_map[edge->start]]->z) > max_axis_value)
+                        max_axis_value = abs(v_vertex[vertex_idx_map[edge->start]]->z);
+
+                    total_x += v_vertex[vertex_idx_map[edge->start]]->x;
+                    total_y += v_vertex[vertex_idx_map[edge->start]]->y;
+                    total_z += v_vertex[vertex_idx_map[edge->start]]->z;
+
+                    newPositions.col(newPosition_col) << v_vertex[vertex_idx_map[edge->start]]->x, v_vertex[vertex_idx_map[edge->start]]->y, v_vertex[vertex_idx_map[edge->start]]->z;
+                    newColors.col(newPosition_col) << 1, 0, 0;
+                    newColors.col(v_faces.size()*3 + newPosition_col*2) << 0, 0, 0;
+                    newColors.col(v_faces.size()*3 + newPosition_col*2+1) << 0, 0, 0;
+
+                    // store vertex postion of lines
+                    newPositions.col(v_faces.size()*3 + newPosition_col*2) << v_vertex[vertex_idx_map[edge->start]]->x, v_vertex[vertex_idx_map[edge->start]]->y, v_vertex[vertex_idx_map[edge->start]]->z;
+                    newPositions.col(v_faces.size()*3 + newPosition_col*2+1) << v_vertex[vertex_idx_map[edge->end]]->x, v_vertex[vertex_idx_map[edge->end]]->y, v_vertex[vertex_idx_map[edge->end]]->z;
+                    
+                    newPosition_col++;
+                    if (edge->left == face)
+                        edge = edge->left_next;
+                    else
+                        edge = edge->right_next;
+                } while (edge != e0);
+                vector<float> this_face_normal;
+                get_normal(temp_face, this_face_normal);
+                newFaceNormals.col(newFaceNormal_col) << this_face_normal[0], this_face_normal[1], this_face_normal[2];
+                newFaceNormal_col++;
+            }
+            cout << "newPosition cols: " << newPosition_col << endl;
+            
+            // centeralize and normalize postion data
+            float mean_x = total_x / newPosition_col;
+            float mean_y = total_y / newPosition_col;
+            float mean_z = total_z / newPosition_col;
+            for(int i = 0; i < newPosition_col*3; i++){
+                newPositions.col(i)[0] -= mean_x;
+                newPositions.col(i)[1] -= mean_y;
+                newPositions.col(i)[2] -= mean_z;
+            }
+            newPositions /= max_axis_value;
+            newPositions *= 3;
+
+            // make lines out of original postion a little
+            for(int i = newPosition_col; i < newPosition_col*3; i++)
+                newPositions.col(i) *= 1.005;
+
+            // build new normal matrix for the use of rendering
+            for(int i = 0; i < v_order.size(); i++){
+                W_edge *e0 = v_vertex[vertex_idx_map[v_order[i]]] -> edge;
+                W_edge *edge = e0;
+                int face_count = 0;
+                newVertexNormals.col(i) << 0, 0, 0;
+                newVertexNormals_flat.col(i) = newFaceNormals.col(face_idx_map[edge -> left]);
+                newVertexNormals_flat.col(v_order.size() + i*2) = newFaceNormals.col(face_idx_map[edge -> left]);
+                do{
+                    if(edge->end == v_vertex[vertex_idx_map[v_order[i]]]){
+                        newVertexNormals.col(i) += newFaceNormals.col(face_idx_map[edge -> left]);
+                        edge = edge->left_next;
+                        face_count++;
+                    }else{
+                        newVertexNormals.col(i) += newFaceNormals.col(face_idx_map[edge -> right]);
+                        edge = edge->right_next;
+                        face_count++;
+                    }
+                }while (edge != e0);
+                newVertexNormals.col(i) /= face_count;
+                newVertexNormals.col(v_order.size() + i*2) = newVertexNormals.col(i);
+
+                e0 = v_vertex[vertex_idx_map[v_order[i]]] -> edge -> end -> edge;
+                edge = e0;
+                face_count = 0;
+                newVertexNormals.col(v_order.size() + i*2 + 1) << 0, 0, 0;
+                newVertexNormals_flat.col(v_order.size() + i*2 + 1) = newFaceNormals.col(face_idx_map[edge -> left]);
+                do{
+                    if(edge->end == v_vertex[vertex_idx_map[v_order[i]]] -> edge -> end){
+                        newVertexNormals.col(i) += newFaceNormals.col(face_idx_map[edge -> left]);
+                        edge = edge->left_next;
+                        face_count++;
+                    }else{
+                        newVertexNormals.col(i) += newFaceNormals.col(face_idx_map[edge -> right]);
+                        edge = edge->right_next;
+                        face_count++;
+                    }
+                }while (edge != e0);
+                newVertexNormals.col(i) /= face_count;
+            }
+
+            mCanvas->updateMeshPositions(newPositions, (int)(newPosition_col/3));
+            mCanvas->updateMeshColors(newColors, (int)(newPosition_col/3));
+            mCanvas->updateMeshNormals(newVertexNormals, newVertexNormals_flat, (int)(newPosition_col/3));
+        });
+
+        b = new Button(tools, "Butterfly");
+        b->setCallback([&] {
+        });
+
+        Button *quit_button = new Button(anotherWindow, "Quit");
+        quit_button->setCallback([&] {
             nanogui::shutdown();
         });
 
@@ -860,10 +1204,6 @@ class ExampleApplication : public nanogui::Screen
   private:
     // nanogui::ProgressBar *mProgress;
     MyGLCanvas *mCanvas;
-    
-    float rotation0_tracking = 0.0;
-    float rotation1_tracking = 0.0;
-    float rotation2_tracking = 0.0;
 
     struct Vertex;
     struct W_edge;
@@ -889,13 +1229,18 @@ class ExampleApplication : public nanogui::Screen
     struct Vertex {
         W_edge *edge;
         float x, y, z;
-        Vertex(float x, float y, float z): edge(nullptr), x(x), y(y), z(z) {};
+        Vertex(float x, float y, float z): 
+            edge(nullptr), 
+            x(x), 
+            y(y), 
+            z(z) {};
     };
 
     // Structure Face
     struct Face {
         W_edge *edge;
-        Face(): edge(nullptr) {};
+        Face(): 
+            edge(nullptr) {};
     };
 
     vector<Vertex *> v_vertex;
@@ -904,6 +1249,13 @@ class ExampleApplication : public nanogui::Screen
     std::map<Vertex *, int> vertex_idx_map;
     std::map<Face *, int> face_idx_map;
 
+    std::map<pair<int, int>, int> edge_rule;
+    vector<float> subd_vertex_x;
+    vector<float> subd_vertex_y;
+    vector<float> subd_vertex_z;
+    vector<int> subd_face_0;
+    vector<int> subd_face_1;
+    vector<int> subd_face_2;
 };
 
 int main(int /* argc */, char ** /* argv */)
