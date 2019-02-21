@@ -1,14 +1,7 @@
-# NanoGUI Test
+# Obj Viewer
 
-Includes CMake build, but before you can do that you will need
-to download the dependencies using git submodule...
+The program has implemented all the features in the assignment including bonus problem.
 
-    git submodule update --init --recursive
-
-Simple example looks like this:
-
-![Screenshot](https://raw.githubusercontent.com/darrenmothersele/nanogui-test/master/screenshot.png "Screenshot")
-
-Uses [NanoGUI](https://github.com/wjakob/nanogui), [GLFW](http://www.glfw.org/),
-[Eigen](http://eigen.tuxfamily.org/), [Embed Resource](https://github.com/cyrilcode/embed-resource),
-and raymarching template from [Raymarching.com](http://raymarching.com/).
+Special usage:
+1. Move right mouse to rotate the mesh, left to translate and scroll middle mouse to zoom.
+2. Use the slider to choose subdivision level then choose one subdivision function.
