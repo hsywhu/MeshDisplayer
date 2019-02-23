@@ -359,7 +359,8 @@ class ExampleApplication : public nanogui::Screen
                 obj_file.close();
             }
             load_data();
-            render_model();
+            render_model(true);
+            cout << "v_Wedges size: " << v_Wedges.size() << endl;
         });
 
         b = new Button(tools, "Save");
@@ -916,6 +917,37 @@ class ExampleApplication : public nanogui::Screen
             }
         });
 
+        new Label(anotherWindow, "Select K and number of edges to collapse", "sans-bold");
+        tools = new Widget(anotherWindow);
+        tools->setLayout(new BoxLayout(Orientation::Horizontal,
+                                       Alignment::Middle, 0, 10));
+        TextBox *selectK = new TextBox(tools, "value of K");
+        selectK->setEditable(true);
+        selectK->setValue("20");
+        new Label(tools, "K", "sans-bold");
+
+        tools = new Widget(anotherWindow);
+        tools->setLayout(new BoxLayout(Orientation::Horizontal,
+                                       Alignment::Middle, 0, 10));
+        TextBox *numOfEdge = new TextBox(tools, "edge number");
+        numOfEdge->setEditable(true);
+        numOfEdge->setValue("10000");
+        new Label(tools, "Num of edges", "sans-bold");
+        
+        tools = new Widget(anotherWindow);
+        tools->setLayout(new BoxLayout(Orientation::Horizontal,
+                                       Alignment::Middle, 0, 5));
+        Button *decimate = new Button(tools, "Decimate");
+        decimate->setCallback([&, selectK, numOfEdge] {
+            int K = stoi(selectK->value());
+            int edgeToCollapse = stoi(numOfEdge->value());
+            int numOfEdges = v_Wedges.size();
+            cout << numOfEdges << endl;
+            for(int collapseCount = 0; collapseCount < edgeToCollapse; collapseCount++){
+                
+            }
+        });
+        
         Button *quit_button = new Button(anotherWindow, "Quit");
         quit_button->setCallback([&] {
             nanogui::shutdown();
@@ -953,7 +985,38 @@ class ExampleApplication : public nanogui::Screen
         float length = sqrt(res[0]*res[0] + res[1]*res[1] + res[2]*res[2]);
         for(int i = 0; i < res.size(); i++)
             res[i] /= length;
-        // cout << "normal" << res[0] << endl;
+    }
+
+    void get_Q(MatrixXf this_face, Eigen::Matrix4f &this_Q){
+        float a1, a2, a3, b1, b2, b3, c1, c2, c3;
+		a1 = this_face.col(1)[0] - this_face.col(0)[0];
+		a2 = this_face.col(1)[1] - this_face.col(0)[1];
+		a3 = this_face.col(1)[2] - this_face.col(0)[2];
+
+		b1 = this_face.col(2)[0] - this_face.col(0)[0];
+		b2 = this_face.col(2)[1] - this_face.col(0)[1];
+		b3 = this_face.col(2)[2] - this_face.col(0)[2];
+
+		c1 = a2*b3 - a3*b2;
+		c2 = a3*b1 - a1*b3;
+		c3 = a1*b2 - a2*b1;
+
+        float area = 0.5*(c1*c1+c2*c2+c3*c3);
+        float d = -c1 * this_face.col(0)[0] - c2 * this_face.col(0)[1] - c3 * this_face.col(0)[2];
+        float aa = area * c1 * c1;
+        float ab = area * c1 * c2;
+        float ac = area * c1 * c3;
+        float ad = area * c1 * d;
+        float bb = area * c2 * c2;
+        float bc = area * c2 * c3;
+        float bd = area * c2 * d;
+        float cc = area * c3 * c3;
+        float cd = area * c3 * d;
+        float dd = area * d * d;
+        this_Q.col(0) << aa, ab, ac, ad;
+        this_Q.col(1) << ab, bb, bc, bd;
+        this_Q.col(2) << ac, bc, cc, cd;
+        this_Q.col(3) << ad, bd, cd, dd;
     }
 
     void updateSubLevel(int newLevel){
@@ -1030,7 +1093,7 @@ class ExampleApplication : public nanogui::Screen
         cout << "successfully reloaded winged edge data structure" << endl;
     }
 
-    void render_model(){
+    void render_model(bool is_initializeQ = false){
         // render model
         cout << "v_vertex length: " <<  v_faces.size() << endl;
         MatrixXf newPositions = MatrixXf(3, v_faces.size()*9);
@@ -1038,6 +1101,7 @@ class ExampleApplication : public nanogui::Screen
         MatrixXf newFaceNormals = MatrixXf(3, v_faces.size());
         MatrixXf newVertexNormals = MatrixXf(3, v_faces.size()*9);
         MatrixXf newVertexNormals_flat = MatrixXf(3, v_faces.size()*9);
+        vector<Eigen::Matrix4f> newFace;
         vector<Vertex *> v_order;
         int check_count = 3;    // make sure we find 3 vertex every iteration
         int newPosition_col = 0;
@@ -1056,7 +1120,9 @@ class ExampleApplication : public nanogui::Screen
             }
             check_count = 0;
             MatrixXf temp_face = MatrixXf(3, 3);
+            vector<int> vertex_in_face;     // save index of vertexes in the face
             do {
+                vertex_in_face.push_back(vertex_idx_map[edge->start]);
                 temp_face.col(check_count) << v_vertex[vertex_idx_map[edge->start]]->x, v_vertex[vertex_idx_map[edge->start]]->y, v_vertex[vertex_idx_map[edge->start]]->z;
                 v_order.push_back(edge->start);
                 check_count++;
@@ -1091,6 +1157,16 @@ class ExampleApplication : public nanogui::Screen
             get_normal(temp_face, this_face_normal);
             newFaceNormals.col(newFaceNormal_col) << this_face_normal[0], this_face_normal[1], this_face_normal[2];
             newFaceNormal_col++;
+
+            if(is_initializeQ){
+                // compute matrix Q of the face
+                Eigen::Matrix4f this_Q;
+                get_Q(temp_face, this_Q);
+                // add the Q of the face to the Q of vertexes belonging to the face
+                v_vertex[vertex_in_face[0]]->Q += this_Q;
+                v_vertex[vertex_in_face[1]]->Q += this_Q;
+                v_vertex[vertex_in_face[2]]->Q += this_Q;
+            }
         }
         cout << "newPosition cols: " << newPosition_col << endl;
         
@@ -1212,11 +1288,17 @@ class ExampleApplication : public nanogui::Screen
     struct Vertex {
         W_edge *edge;
         float x, y, z;
+        Eigen::Matrix4f Q;
         Vertex(float x, float y, float z): 
             edge(nullptr), 
             x(x), 
             y(y), 
-            z(z) {};
+            z(z){
+                Q << 0, 0, 0, 0,
+                     0, 0, 0, 0, 
+                     0, 0, 0, 0, 
+                     0, 0, 0, 0;
+            };
     };
 
     // Structure Face
