@@ -954,7 +954,7 @@ class ExampleApplication : public nanogui::Screen
                         case 0: tmp_pair = pair<int, int>(origin_face_0[tmp], origin_face_1[tmp]); break;
                         case 1: tmp_pair = pair<int, int>(origin_face_1[tmp], origin_face_2[tmp]); break;
                         case 2: tmp_pair = pair<int, int>(origin_face_2[tmp], origin_face_0[tmp]); break;
-                        default: tmp_pair = pair<int, int>(origin_face_0[tmp], origin_face_1[tmp]);
+                        default: tmp_pair = pair<int, int>(origin_face_0[tmp], origin_face_1[tmp]); 
                     }
                     pair<int, int> tmp_pair_reverse(tmp_pair.second, tmp_pair.first);
                     bool is_save = true;
@@ -966,8 +966,82 @@ class ExampleApplication : public nanogui::Screen
                             break;
                         }
                     }
-                    if(is_save)
+                    // if(is_save)
+                    //     K_idx.push_back(tmp_pair);
+                    // find all surrounding vertex of start point and end point
+                    vector<int> sur_start;
+                    vector<int> sur_end;
+                    for(int i = 0; i < origin_face_0.size(); i++){
+                        if(origin_face_0[i] == tmp_pair.first){
+                            if (std::find(sur_start.begin(), sur_start.end(), origin_face_1[i]) == sur_start.end()){
+                                //element not exists in the vector
+                                sur_start.push_back(origin_face_1[i]);
+                            }
+                            if (std::find(sur_start.begin(), sur_start.end(), origin_face_2[i]) == sur_start.end()){
+                                //element not exists in the vector
+                                sur_start.push_back(origin_face_2[i]);
+                            }
+                        }
+                        if(origin_face_1[i] == tmp_pair.first){
+                            if (std::find(sur_start.begin(), sur_start.end(), origin_face_0[i]) == sur_start.end()){
+                                //element not exists in the vector
+                                sur_start.push_back(origin_face_0[i]);
+                            }
+                            if (std::find(sur_start.begin(), sur_start.end(), origin_face_2[i]) == sur_start.end()){
+                                //element not exists in the vector
+                                sur_start.push_back(origin_face_2[i]);
+                            }
+                        }
+                        if(origin_face_2[i] == tmp_pair.first){
+                            if (std::find(sur_start.begin(), sur_start.end(), origin_face_0[i]) == sur_start.end()){
+                                //element not exists in the vector
+                                sur_start.push_back(origin_face_0[i]);
+                            }
+                            if (std::find(sur_start.begin(), sur_start.end(), origin_face_1[i]) == sur_start.end()){
+                                //element not exists in the vector
+                                sur_start.push_back(origin_face_1[i]);
+                            }
+                        }
+                        if(origin_face_0[i] == tmp_pair.second){
+                            if (std::find(sur_end.begin(), sur_end.end(), origin_face_1[i]) == sur_end.end()){
+                                //element not exists in the vector
+                                sur_end.push_back(origin_face_1[i]);
+                            }
+                            if (std::find(sur_end.begin(), sur_end.end(), origin_face_2[i]) == sur_end.end()){
+                                //element not exists in the vector
+                                sur_end.push_back(origin_face_2[i]);
+                            }
+                        }
+                        if(origin_face_1[i] == tmp_pair.second){
+                            if (std::find(sur_end.begin(), sur_end.end(), origin_face_0[i]) == sur_end.end()){
+                                //element not exists in the vector
+                                sur_end.push_back(origin_face_0[i]);
+                            }
+                            if (std::find(sur_end.begin(), sur_end.end(), origin_face_2[i]) == sur_end.end()){
+                                //element not exists in the vector
+                                sur_end.push_back(origin_face_2[i]);
+                            }
+                        }
+                        if(origin_face_2[i] == tmp_pair.second){
+                            if (std::find(sur_end.begin(), sur_end.end(), origin_face_0[i]) == sur_end.end()){
+                                //element not exists in the vector
+                                sur_end.push_back(origin_face_0[i]);
+                            }
+                            if (std::find(sur_end.begin(), sur_end.end(), origin_face_1[i]) == sur_end.end()){
+                                //element not exists in the vector
+                                sur_end.push_back(origin_face_1[i]);
+                            }
+                        }
+                    }
+                    std::vector<int> v3;
+                    std::sort(sur_start.begin(), sur_start.end());
+                    std::sort(sur_end.begin(), sur_end.end());
+                    std::set_intersection(sur_start.begin(),sur_start.end(),
+                                        sur_end.begin(),sur_end.end(),
+                                        back_inserter(v3));
+                    if(v3.size() == 2 && is_save){
                         K_idx.push_back(tmp_pair);
+                    }
                 }
 
                 // find the edge that has the smallest quadric error
@@ -1007,6 +1081,17 @@ class ExampleApplication : public nanogui::Screen
                     3. change the position and Q matrix of the vertex at end point
                     4. record the start points which are to be removed afterward
                 */
+                // int count_start = 0;
+                // int count_end = 0;
+                // for(int i = 0; i < origin_face_0.size(); i++){
+                //     if(origin_face_0[i] == start_idx || origin_face_1[i] == start_idx || origin_face_2[i] == start_idx){
+                //         count_start++;
+                //     }
+                //     if(origin_face_0[i] == end_idx || origin_face_1[i] == end_idx || origin_face_2[i] == end_idx){
+                //         count_end++;
+                //     }
+                // }
+                // cout << "start_count: " << count_start << " end_count: " << count_end << endl; 
                 for(int i = 0; i < origin_face_0.size(); i++){
                     if(origin_face_0[i] == start_idx || origin_face_1[i] == start_idx || origin_face_2[i] == start_idx){
                         // if one of the vertex in the face is the end vertex, then remove this face
@@ -1035,9 +1120,9 @@ class ExampleApplication : public nanogui::Screen
             origin_vertex_y.clear();
             origin_vertex_z.clear();
             origin_Q.clear();
-            for(int i = 0; i < v_vertex_mapping.size(); i++){
-                cout << i << " " << v_vertex_mapping[i] << endl;
-            }
+            // for(int i = 0; i < v_vertex_mapping.size(); i++){
+            //     cout << i << " " << v_vertex_mapping[i] << endl;
+            // }
             for(int i = 0; i < v_vertex.size(); i++){
                 if(v_vertex_mapping[i] > -1){
                     origin_vertex_x.push_back(v_vertex[i]->x);
@@ -1150,7 +1235,7 @@ class ExampleApplication : public nanogui::Screen
         cout << "successfully saved mesh data to obj file" << endl;
     }
 
-    void load_data(bool is_decimate = false){       // load vertex and face data to winged edge data structure
+    void load_data(bool is_loadQ = false){       // load vertex and face data to winged edge data structure
         v_faces.clear();
         v_Wedges.clear();
         face_idx_map.clear();
@@ -1164,7 +1249,7 @@ class ExampleApplication : public nanogui::Screen
             vertex_p.push_back(origin_vertex_z[origin_vertex_idx]);
             //start loading vertex data to vector
             Vertex *vertex_temp = new Vertex(vertex_p[0], vertex_p[1], vertex_p[2]);
-            if(is_decimate)
+            if(is_loadQ)
                 vertex_temp->Q = origin_Q[origin_vertex_idx];
             v_vertex.push_back(vertex_temp);
             vertex_idx_map[vertex_temp] = v_vertex.size() - 1;
@@ -1191,8 +1276,14 @@ class ExampleApplication : public nanogui::Screen
                 v_Wedges[p] = edge_temp;
                 v0->edge = edge_temp;
             }
-            
-            // combine old data with new data
+        }
+
+        // combine old data with new data
+        for (int origin_face_idx = 0; origin_face_idx<origin_face_0.size(); origin_face_idx++){
+            vector<int> face_idx;
+            face_idx.push_back(origin_face_0[origin_face_idx]+1);
+            face_idx.push_back(origin_face_1[origin_face_idx]+1);
+            face_idx.push_back(origin_face_2[origin_face_idx]+1);
             for(int i = 0; i < face_idx.size(); i++){
                 pair<int, int> p(face_idx[i], face_idx[(i + 1) % face_idx.size()]);
                 pair<int, int> p_prev(face_idx[(i - 1 + face_idx.size()) % face_idx.size()], face_idx[i]);
@@ -1213,10 +1304,11 @@ class ExampleApplication : public nanogui::Screen
                     edge2->right = edge->left;
                     edge2->right_prev = edge->left_prev;
                     edge2->right_next = edge->left_next;
+                }else{
+                    cout << "reverse edge not found" << endl;
                 }
             }
         }
-        
         cout << "successfully reloaded winged edge data structure" << endl;
     }
 
@@ -1238,21 +1330,24 @@ class ExampleApplication : public nanogui::Screen
         float total_y = 0;
         float total_z = 0;
         // build new position and color matrix for the use of rendering
+        cout << "asshike" << endl;
         for (auto face : v_faces) {
             W_edge *e0 = face->edge;
             W_edge *edge = e0;
-            if(check_count != 3){
-                cout << "unqualified!" << endl;
-            }
+            
             check_count = 0;
             MatrixXf temp_face = MatrixXf(3, 3);
             vector<int> vertex_in_face;     // save index of vertexes in the face
             do {
+                // cout << "asshike fun" << check_count << endl;
                 vertex_in_face.push_back(vertex_idx_map[edge->start]);
                 temp_face.col(check_count) << v_vertex[vertex_idx_map[edge->start]]->x, v_vertex[vertex_idx_map[edge->start]]->y, v_vertex[vertex_idx_map[edge->start]]->z;
                 v_order.push_back(edge->start);
                 check_count++;
-
+                if(check_count > 3){
+                    cout << "unqualified!" << endl;
+                    exit(-1);
+                }
                 if(abs(v_vertex[vertex_idx_map[edge->start]]->x) > max_axis_value)
                     max_axis_value = abs(v_vertex[vertex_idx_map[edge->start]]->x);
                 if(abs(v_vertex[vertex_idx_map[edge->start]]->y) > max_axis_value)
@@ -1263,6 +1358,7 @@ class ExampleApplication : public nanogui::Screen
                 total_x += v_vertex[vertex_idx_map[edge->start]]->x;
                 total_y += v_vertex[vertex_idx_map[edge->start]]->y;
                 total_z += v_vertex[vertex_idx_map[edge->start]]->z;
+                // cout << "fk me" << endl;
 
                 newPositions.col(newPosition_col) << v_vertex[vertex_idx_map[edge->start]]->x, v_vertex[vertex_idx_map[edge->start]]->y, v_vertex[vertex_idx_map[edge->start]]->z;
                 newColors.col(newPosition_col) << 1, 0, 0;
@@ -1274,10 +1370,13 @@ class ExampleApplication : public nanogui::Screen
                 newPositions.col(v_faces.size()*3 + newPosition_col*2+1) << v_vertex[vertex_idx_map[edge->end]]->x, v_vertex[vertex_idx_map[edge->end]]->y, v_vertex[vertex_idx_map[edge->end]]->z;
                 
                 newPosition_col++;
+
                 if (edge->left == face)
                     edge = edge->left_next;
-                else
+                else{
                     edge = edge->right_next;
+                    cout << "NG" << endl;
+                }
             } while (edge != e0);
             vector<float> this_face_normal;
             get_normal(temp_face, this_face_normal);
@@ -1305,7 +1404,6 @@ class ExampleApplication : public nanogui::Screen
         }
         newPositions /= max_axis_value;
         newPositions *= 3;
-
         // make lines out of original postion a little
         for(int i = newPosition_col; i < newPosition_col*3; i++)
             newPositions.col(i) *= 1.005;
@@ -1332,13 +1430,26 @@ class ExampleApplication : public nanogui::Screen
             newVertexNormals.col(i) /= face_count;
             newVertexNormals.col(v_order.size() + i*2) = newVertexNormals.col(i) * 1.05;
 
-            e0 = v_vertex[vertex_idx_map[v_order[i]]] -> edge -> end -> edge;
+            int st;
+            if(i%3==2)
+                st = vertex_idx_map[v_order[i-2]];
+            else
+                st = vertex_idx_map[v_order[i+1]];
+            int ed = vertex_idx_map[v_order[i]];
+            pair<int, int> p(st+1, ed+1);
+            if(v_Wedges.find(p) != v_Wedges.end()){
+                e0 = v_Wedges.find(p)->second;
+            }else
+                cout << "cant find edge!" << endl;
+
+            // e0 = v_vertex[vertex_idx_map[v_order[i]]] -> edge -> end -> edge;
             edge = e0;
             face_count = 0;
             newVertexNormals.col(v_order.size() + i*2 + 1) << 0, 0, 0;
             newVertexNormals_flat.col(v_order.size() + i*2 + 1) = newFaceNormals.col(face_idx_map[edge -> left]) * 1.05;
             do{
-                if(edge->end == v_vertex[vertex_idx_map[v_order[i]]] -> edge -> end){
+                // cout << "asshike" << rand()%10 << endl;
+                if(edge->end == v_vertex[st]){
                     newVertexNormals.col(v_order.size() + i*2 + 1) += newFaceNormals.col(face_idx_map[edge -> left]);
                     edge = edge->left_next;
                     face_count++;

@@ -4,9 +4,9 @@ set(CMAKE_DEPENDS_LANGUAGES
   )
 # The set of files for implicit dependencies of each language:
 set(CMAKE_DEPENDS_CHECK_CXX
-  "/home/songyih/CMPT764/Assignment1/nanogui_cmpt_464/lib/embed-resource/embedresource.cpp" "/home/songyih/CMPT764/Assignment1/nanogui_cmpt_464/lib/embed-resource/CMakeFiles/embed-resource.dir/embedresource.cpp.o"
+  "/Users/songyih/OneDrive/Documents/CMPT764/Assignment2/OBJViewer/lib/embed-resource/embedresource.cpp" "/Users/songyih/OneDrive/Documents/CMPT764/Assignment2/OBJViewer/lib/embed-resource/CMakeFiles/embed-resource.dir/embedresource.cpp.o"
   )
-set(CMAKE_CXX_COMPILER_ID "GNU")
+set(CMAKE_CXX_COMPILER_ID "AppleClang")
 
 # Preprocessor definitions for this target.
 set(CMAKE_TARGET_DEFINITIONS_CXX
@@ -18,6 +18,7 @@ set(CMAKE_TARGET_DEFINITIONS_CXX
 
 # The include file search paths:
 set(CMAKE_CXX_TARGET_INCLUDE_PATH
+  "/usr/local/include"
   "lib/nanogui/include"
   "lib/nanogui/ext/glfw/include"
   "lib/nanogui/ext/nanovg/src"
