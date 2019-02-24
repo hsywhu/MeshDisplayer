@@ -185,7 +185,6 @@ class MyGLCanvas : public nanogui::GLCanvas
         }
         if (button == GLFW_MOUSE_BUTTON_1) {
             right_mouse_down = down;
-            // cout << "right_mouse " << right_mouse_down << endl;
             return true;
         }
         return false;
@@ -503,7 +502,6 @@ class ExampleApplication : public nanogui::Screen
                             float new_z = 0;
                             float tmp = edge->start->x;
                             new_x += (edge->start->x)*3.0/8.0;
-                            // cout << "new_x" << new_x << endl;
                             new_y += (edge->start->y)*3.0/8.0;
                             new_z += (edge->start->z)*3.0/8.0;
 
@@ -535,7 +533,6 @@ class ExampleApplication : public nanogui::Screen
 
                     vertex_idx.push_back(vertex_idx_map[edge->start]);
                     pair<int, int> p0(vertex_idx_map[edge->start], vertex_idx_map[edge->end]);
-                    // cout << edge_rule.find(p)->second << endl;
                     vertex_idx.push_back(edge_rule.find(p0)->second);
                     vertex_idx.push_back(vertex_idx_map[edge->end]);
                     pair<int, int> p1(vertex_idx_map[edge->left_next->start], vertex_idx_map[edge->left_next->end]);
@@ -640,7 +637,6 @@ class ExampleApplication : public nanogui::Screen
 
                             // apply different masks according to different cases
                             if (start_surround_idx.size() == 6 && end_surround_idx.size() == 6){
-                                // cout << "66" << endl;
                                 new_x += (1.0/2.0) * edge->start->x;
                                 new_y += (1.0/2.0) * edge->start->y;
                                 new_z += (1.0/2.0) * edge->start->z;
@@ -673,7 +669,6 @@ class ExampleApplication : public nanogui::Screen
                                 new_y += -(1.0/16.0) * edge->right_next->left_next->right_next->end->y;
                                 new_z += -(1.0/16.0) * edge->right_next->left_next->right_next->end->z;
                             }else if (start_surround_idx.size() == 6 && end_surround_idx.size() != 6){
-                                // cout << "6!6" << endl;
                                 if (end_surround_idx.size() == 3){
                                     new_x += (5.0/12.0) * edge->start->x;
                                     new_y += (5.0/12.0) * edge->start->y;
@@ -882,7 +877,6 @@ class ExampleApplication : public nanogui::Screen
 
                     vertex_idx.push_back(vertex_idx_map[edge->start]);
                     pair<int, int> p0(vertex_idx_map[edge->start], vertex_idx_map[edge->end]);
-                    // cout << edge_rule.find(p)->second << endl;
                     vertex_idx.push_back(edge_rule.find(p0)->second);
                     vertex_idx.push_back(vertex_idx_map[edge->end]);
                     pair<int, int> p1(vertex_idx_map[edge->left_next->start], vertex_idx_map[edge->left_next->end]);
@@ -941,11 +935,124 @@ class ExampleApplication : public nanogui::Screen
         decimate->setCallback([&, selectK, numOfEdge] {
             int K = stoi(selectK->value());
             int edgeToCollapse = stoi(numOfEdge->value());
-            int numOfEdges = v_Wedges.size();
-            cout << numOfEdges << endl;
-            for(int collapseCount = 0; collapseCount < edgeToCollapse; collapseCount++){
-                
+            vector<int> v_vertex_mapping;
+            for(int i = 0; i < v_vertex.size(); i++){
+                v_vertex_mapping.push_back(i);
             }
+            // edgeToCollapse = 1; // debug use
+            // K = 6; // debug use
+            // save_origin_face();
+            for(int collapseCount = 0; collapseCount < edgeToCollapse; collapseCount++){
+                // randomly choose K edges. Make sure there is no repeat edges
+                // vertex idx in origin_face starts from 0
+                vector<pair<int, int> > K_idx;
+                while(K_idx.size() < K){
+                    int tmp = rand() % origin_face_0.size();
+                    int start_from = rand() % 3;
+                    pair<int, int> tmp_pair;
+                    switch(start_from){
+                        case 0: tmp_pair = pair<int, int>(origin_face_0[tmp], origin_face_1[tmp]); break;
+                        case 1: tmp_pair = pair<int, int>(origin_face_1[tmp], origin_face_2[tmp]); break;
+                        case 2: tmp_pair = pair<int, int>(origin_face_2[tmp], origin_face_0[tmp]); break;
+                        default: tmp_pair = pair<int, int>(origin_face_0[tmp], origin_face_1[tmp]);
+                    }
+                    pair<int, int> tmp_pair_reverse(tmp_pair.second, tmp_pair.first);
+                    bool is_save = true;
+                    for(auto const &saved_idx: K_idx){
+                        if(saved_idx != tmp_pair && saved_idx != tmp_pair_reverse)
+                            continue;
+                        else{
+                            is_save = false;
+                            break;
+                        }
+                    }
+                    if(is_save)
+                        K_idx.push_back(tmp_pair);
+                }
+
+                // find the edge that has the smallest quadric error
+                int start_idx = K_idx[0].first;
+                int end_idx = K_idx[0].second;
+                Eigen::Matrix4f Q_hat = v_vertex[start_idx]->Q + v_vertex[end_idx]->Q;
+                Eigen::Matrix4f tmp_matrix0 = Q_hat;
+                tmp_matrix0.row(3) << 0, 0, 0, 1;
+                Eigen::MatrixXf tmp_matrix1(4, 1);
+                tmp_matrix1 << 0, 0, 0, 1;
+                Eigen::MatrixXf v_hat = tmp_matrix0.inverse() * tmp_matrix1;
+                Eigen::MatrixXf quadric_error_matrix = v_hat.transpose() * Q_hat * v_hat;
+                int min_error = quadric_error_matrix(0, 0);
+                Eigen::MatrixXf min_error_v_hat = v_hat;
+                Eigen::Matrix4f min_error_Q_hat = Q_hat;
+
+                for (int i = 1; i < K_idx.size(); i++){
+                    Q_hat = v_vertex[K_idx[i].first]->Q + v_vertex[K_idx[i].second]->Q;
+                    tmp_matrix0 = Q_hat;
+                    tmp_matrix0.row(3) << 0, 0, 0, 1;
+                    tmp_matrix1 << 0, 0, 0, 1;
+                    v_hat = tmp_matrix0.inverse() * tmp_matrix1;
+                    quadric_error_matrix = v_hat.transpose() * Q_hat * v_hat;
+                    if(quadric_error_matrix(0, 0) < min_error){
+                        start_idx = K_idx[i].first;
+                        end_idx = K_idx[i].second;
+                        min_error_v_hat = v_hat;
+                        min_error_Q_hat = Q_hat;
+                    }
+                }
+                // cout << min_error_v_hat << endl;
+                // cout << "start_idx " << v_vertex[start_idx]->x << " " << v_vertex[start_idx]->y << " " << v_vertex[start_idx] -> z << endl;
+                // cout << "end_idx " << v_vertex[end_idx]->x << " " << v_vertex[end_idx]->y << " " << v_vertex[end_idx] -> z << endl;
+                
+                /*  1. delete the vertex at start point
+                    2. change the faces related to the vertex
+                    3. change the position and Q matrix of the vertex at end point
+                    4. record the start points which are to be removed afterward
+                */
+                for(int i = 0; i < origin_face_0.size(); i++){
+                    if(origin_face_0[i] == start_idx || origin_face_1[i] == start_idx || origin_face_2[i] == start_idx){
+                        // if one of the vertex in the face is the end vertex, then remove this face
+                        if(origin_face_0[i] == end_idx || origin_face_1[i] == end_idx || origin_face_2[i] == end_idx){
+                            origin_face_0.erase (origin_face_0.begin() + i);
+                            origin_face_1.erase (origin_face_1.begin() + i);
+                            origin_face_2.erase (origin_face_2.begin() + i);
+                            i--;
+                        }else if(origin_face_0[i] == start_idx)
+                            origin_face_0[i] = end_idx;
+                        else if(origin_face_1[i] == start_idx)
+                            origin_face_1[i] = end_idx;
+                        else if(origin_face_2[i] == start_idx)
+                            origin_face_2[i] = end_idx;
+                    }
+                }
+                v_vertex[end_idx]->x = min_error_v_hat(0, 0);
+                v_vertex[end_idx]->y = min_error_v_hat(1, 0);
+                v_vertex[end_idx]->z = min_error_v_hat(2, 0);
+                v_vertex[end_idx]->Q = min_error_Q_hat;
+                v_vertex_mapping[start_idx] = -1;
+                for(int i = start_idx+1; i < v_vertex_mapping.size(); i++)
+                    v_vertex_mapping[i]--;
+            }   // end of collapse for loop
+            origin_vertex_x.clear();
+            origin_vertex_y.clear();
+            origin_vertex_z.clear();
+            origin_Q.clear();
+            for(int i = 0; i < v_vertex_mapping.size(); i++){
+                cout << i << " " << v_vertex_mapping[i] << endl;
+            }
+            for(int i = 0; i < v_vertex.size(); i++){
+                if(v_vertex_mapping[i] > -1){
+                    origin_vertex_x.push_back(v_vertex[i]->x);
+                    origin_vertex_y.push_back(v_vertex[i]->y);
+                    origin_vertex_z.push_back(v_vertex[i]->z);
+                    origin_Q.push_back(v_vertex[i]->Q);
+                }
+            }
+            for(int i = 0; i < origin_face_0.size(); i++){
+                origin_face_0[i] = v_vertex_mapping[origin_face_0[i]];
+                origin_face_1[i] = v_vertex_mapping[origin_face_1[i]];
+                origin_face_2[i] = v_vertex_mapping[origin_face_2[i]];
+            }
+            load_data(true);
+            render_model();
         });
         
         Button *quit_button = new Button(anotherWindow, "Quit");
@@ -1027,13 +1134,29 @@ class ExampleApplication : public nanogui::Screen
         return subLevel;
     }
 
-    void load_data(){       // load vertex and face data to winged edge data structure
-        v_vertex.clear();
+    void save_origin_face(){
+        // save origin_face to file for the use of debug
+        string file_dir = "./origin_face.txt";
+        std::ofstream fout(file_dir, std::ofstream::out);
+        if (fout.is_open()){
+            for (int i = 0; i < origin_face_0.size(); i++){
+                //elem.first gives you the key (int)
+                fout << origin_face_0[i] << ' ' << origin_face_1[i] << " " << origin_face_2[i] << endl;  
+                //elem.second gives you the mapped element (vector)
+            }
+            fout.close();
+        }else
+            cout << "error creating obj file" << endl;
+        cout << "successfully saved mesh data to obj file" << endl;
+    }
+
+    void load_data(bool is_decimate = false){       // load vertex and face data to winged edge data structure
         v_faces.clear();
         v_Wedges.clear();
-        vertex_idx_map.clear();
         face_idx_map.clear();
-        
+        v_vertex.clear();
+        vertex_idx_map.clear();
+
         for (int origin_vertex_idx = 0; origin_vertex_idx<origin_vertex_x.size(); origin_vertex_idx++){
             vector<float> vertex_p;
             vertex_p.push_back(origin_vertex_x[origin_vertex_idx]);
@@ -1041,9 +1164,13 @@ class ExampleApplication : public nanogui::Screen
             vertex_p.push_back(origin_vertex_z[origin_vertex_idx]);
             //start loading vertex data to vector
             Vertex *vertex_temp = new Vertex(vertex_p[0], vertex_p[1], vertex_p[2]);
+            if(is_decimate)
+                vertex_temp->Q = origin_Q[origin_vertex_idx];
             v_vertex.push_back(vertex_temp);
             vertex_idx_map[vertex_temp] = v_vertex.size() - 1;
         }
+        
+        
         for (int origin_face_idx = 0; origin_face_idx<origin_face_0.size(); origin_face_idx++){
             vector<int> face_idx;
             face_idx.push_back(origin_face_0[origin_face_idx]+1);
@@ -1095,7 +1222,7 @@ class ExampleApplication : public nanogui::Screen
 
     void render_model(bool is_initializeQ = false){
         // render model
-        cout << "v_vertex length: " <<  v_faces.size() << endl;
+        cout << "v_face length: " <<  v_faces.size() << endl;
         MatrixXf newPositions = MatrixXf(3, v_faces.size()*9);
         MatrixXf newColors = MatrixXf(3, v_faces.size()*9);
         MatrixXf newFaceNormals = MatrixXf(3, v_faces.size());
@@ -1110,7 +1237,6 @@ class ExampleApplication : public nanogui::Screen
         float total_x = 0;  // record total value for each axises for centeralization
         float total_y = 0;
         float total_z = 0;
-
         // build new position and color matrix for the use of rendering
         for (auto face : v_faces) {
             W_edge *e0 = face->edge;
@@ -1168,8 +1294,6 @@ class ExampleApplication : public nanogui::Screen
                 v_vertex[vertex_in_face[2]]->Q += this_Q;
             }
         }
-        cout << "newPosition cols: " << newPosition_col << endl;
-        
         // centeralize and normalize postion data
         float mean_x = total_x / newPosition_col;
         float mean_y = total_y / newPosition_col;
@@ -1185,10 +1309,9 @@ class ExampleApplication : public nanogui::Screen
         // make lines out of original postion a little
         for(int i = newPosition_col; i < newPosition_col*3; i++)
             newPositions.col(i) *= 1.005;
-
         // build new normal matrix for the use of rendering
         for(int i = 0; i < v_order.size(); i++){
-            W_edge *e0 = v_vertex[vertex_idx_map[v_order[i]]] -> edge;
+            W_edge *e0 = v_order[i] -> edge;
             W_edge *edge = e0;
             int face_count = 0;
             newVertexNormals.col(i) << 0, 0, 0;
@@ -1204,6 +1327,7 @@ class ExampleApplication : public nanogui::Screen
                     edge = edge->right_next;
                     face_count++;
                 }
+                
             }while (edge != e0);
             newVertexNormals.col(i) /= face_count;
             newVertexNormals.col(v_order.size() + i*2) = newVertexNormals.col(i) * 1.05;
@@ -1310,7 +1434,9 @@ class ExampleApplication : public nanogui::Screen
 
     vector<Vertex *> v_vertex;
     vector<Face *> v_faces;
+    vector<Eigen::Matrix4f> origin_Q;
     std::map<pair<int, int>, W_edge *> v_Wedges;
+    std::map<int, pair<int, int> > v_Wedges_order;
     std::map<Vertex *, int> vertex_idx_map;
     std::map<Face *, int> face_idx_map;
     std::map<pair<int, int>, int> edge_rule;
