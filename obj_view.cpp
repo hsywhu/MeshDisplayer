@@ -1112,6 +1112,7 @@ class ExampleApplication : public nanogui::Screen
                 v_vertex[end_idx]->y = min_error_v_hat(1, 0);
                 v_vertex[end_idx]->z = min_error_v_hat(2, 0);
                 v_vertex[end_idx]->Q = min_error_Q_hat;
+                cout << "min_error_Q_hat: " << min_error_Q_hat << endl;
                 v_vertex_mapping[start_idx] = -1;
                 for(int i = start_idx+1; i < v_vertex_mapping.size(); i++)
                     v_vertex_mapping[i]--;
@@ -1179,37 +1180,49 @@ class ExampleApplication : public nanogui::Screen
             res[i] /= length;
     }
 
-    void get_Q(MatrixXf this_face, Eigen::Matrix4f &this_Q){
-        float a1, a2, a3, b1, b2, b3, c1, c2, c3;
-		a1 = this_face.col(1)[0] - this_face.col(0)[0];
-		a2 = this_face.col(1)[1] - this_face.col(0)[1];
-		a3 = this_face.col(1)[2] - this_face.col(0)[2];
-
-		b1 = this_face.col(2)[0] - this_face.col(0)[0];
-		b2 = this_face.col(2)[1] - this_face.col(0)[1];
-		b3 = this_face.col(2)[2] - this_face.col(0)[2];
-
-		c1 = a2*b3 - a3*b2;
-		c2 = a3*b1 - a1*b3;
-		c3 = a1*b2 - a2*b1;
-
-        float area = 0.5*(c1*c1+c2*c2+c3*c3);
-        float d = -c1 * this_face.col(0)[0] - c2 * this_face.col(0)[1] - c3 * this_face.col(0)[2];
-        float aa = area * c1 * c1;
-        float ab = area * c1 * c2;
-        float ac = area * c1 * c3;
-        float ad = area * c1 * d;
-        float bb = area * c2 * c2;
-        float bc = area * c2 * c3;
-        float bd = area * c2 * d;
-        float cc = area * c3 * c3;
-        float cd = area * c3 * d;
-        float dd = area * d * d;
-        this_Q.col(0) << aa, ab, ac, ad;
-        this_Q.col(1) << ab, bb, bc, bd;
-        this_Q.col(2) << ac, bc, cc, cd;
-        this_Q.col(3) << ad, bd, cd, dd;
+    void get_Q(MatrixXf this_face, vector<float> face_normal, Eigen::Matrix4f &this_Q){
+        float a, b, c, d;
+        a = face_normal[0];
+        b = face_normal[1];
+        c = face_normal[2];
+        d = -(a*this_face.col(0)[0]) - (b*this_face.col(0)[1]) - (c*this_face.col(0)[2]);
+        this_Q.col(0) << a*a, a*b, a*c, a*d;
+        this_Q.col(1) << a*b, b*b, b*c, b*d;
+        this_Q.col(2) << a*c, b*c, c*c, c*d;
+        this_Q.col(3) << a*d, b*d, c*d, d*d;
     }
+
+    // void get_Q(MatrixXf this_face, Eigen::Matrix4f &this_Q){
+    //     float a1, a2, a3, b1, b2, b3, c1, c2, c3;
+	// 	a1 = this_face.col(1)[0] - this_face.col(0)[0];
+	// 	a2 = this_face.col(1)[1] - this_face.col(0)[1];
+	// 	a3 = this_face.col(1)[2] - this_face.col(0)[2];
+
+	// 	b1 = this_face.col(2)[0] - this_face.col(0)[0];
+	// 	b2 = this_face.col(2)[1] - this_face.col(0)[1];
+	// 	b3 = this_face.col(2)[2] - this_face.col(0)[2];
+
+	// 	c1 = a2*b3 - a3*b2;
+	// 	c2 = a3*b1 - a1*b3;
+	// 	c3 = a1*b2 - a2*b1;
+
+    //     float area = 0.5*(c1*c1+c2*c2+c3*c3);
+    //     float d = -c1 * this_face.col(0)[0] - c2 * this_face.col(0)[1] - c3 * this_face.col(0)[2];
+    //     float aa = area * c1 * c1;
+    //     float ab = area * c1 * c2;
+    //     float ac = area * c1 * c3;
+    //     float ad = area * c1 * d;
+    //     float bb = area * c2 * c2;
+    //     float bc = area * c2 * c3;
+    //     float bd = area * c2 * d;
+    //     float cc = area * c3 * c3;
+    //     float cd = area * c3 * d;
+    //     float dd = area * d * d;
+    //     this_Q.col(0) << aa, ab, ac, ad;
+    //     this_Q.col(1) << ab, bb, bc, bd;
+    //     this_Q.col(2) << ac, bc, cc, cd;
+    //     this_Q.col(3) << ad, bd, cd, dd;
+    // }
 
     void updateSubLevel(int newLevel){
         subLevel = newLevel;
@@ -1386,7 +1399,7 @@ class ExampleApplication : public nanogui::Screen
             if(is_initializeQ){
                 // compute matrix Q of the face
                 Eigen::Matrix4f this_Q;
-                get_Q(temp_face, this_Q);
+                get_Q(temp_face, this_face_normal, this_Q);
                 // add the Q of the face to the Q of vertexes belonging to the face
                 v_vertex[vertex_in_face[0]]->Q += this_Q;
                 v_vertex[vertex_in_face[1]]->Q += this_Q;
