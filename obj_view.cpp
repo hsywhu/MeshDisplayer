@@ -1072,7 +1072,8 @@ class ExampleApplication : public nanogui::Screen
                         min_error_Q_hat = Q_hat;
                     }
                 }
-                // cout << min_error_v_hat << endl;
+                cout << "min_error: " <<min_error << endl;
+                cout << "new_V" << min_error_v_hat << endl;
                 // cout << "start_idx " << v_vertex[start_idx]->x << " " << v_vertex[start_idx]->y << " " << v_vertex[start_idx] -> z << endl;
                 // cout << "end_idx " << v_vertex[end_idx]->x << " " << v_vertex[end_idx]->y << " " << v_vertex[end_idx] -> z << endl;
                 
@@ -1112,7 +1113,7 @@ class ExampleApplication : public nanogui::Screen
                 v_vertex[end_idx]->y = min_error_v_hat(1, 0);
                 v_vertex[end_idx]->z = min_error_v_hat(2, 0);
                 v_vertex[end_idx]->Q = min_error_Q_hat;
-                cout << "min_error_Q_hat: " << min_error_Q_hat << endl;
+                // cout << "min_error_Q_hat: " << min_error_Q_hat << endl;
                 v_vertex_mapping[start_idx] = -1;
                 for(int i = start_idx+1; i < v_vertex_mapping.size(); i++)
                     v_vertex_mapping[i]--;
